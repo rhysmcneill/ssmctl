@@ -3,11 +3,11 @@ package main
 import (
 	"os"
 
-	"github.com/rhysmcneill/ssmctl/internal/cmd"
+	"github.com/rhysmcneill/ssmctl/internal/app"
 )
 
 func main() {
-	if err := cmd.Run(); err != nil {
+	if err := app.Run(); err != nil {
 		os.Exit(1)
 	}
 }

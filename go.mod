@@ -1,3 +1,3 @@
 module github.com/rhysmcneill/ssmctl
 
-go 1.26
+go 1.26.2

@@ -16,6 +16,7 @@ type Config struct {
 func (c *Config) Validate() error {
 	switch c.Output {
 	case "json", "text":
+	default:
 		return fmt.Errorf("invalid output format: %s", c.Output)
 	}
 

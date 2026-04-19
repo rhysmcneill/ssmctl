@@ -56,12 +56,7 @@ func Run() error {
 	f.BoolVarP(&opts.Debug, "debug", "d", false, "Enable debug logging")
 	f.DurationVarP(&opts.Timeout, "timeout", "t", 60*time.Second, "Timeout for commands")
 
-	cmd.AddCommand(
-		connectCmd(),
-		runCmd(),
-		cpCmd(),
-		versionCmd(),
-	)
+	cmd.AddCommand(connectCmd(), runCmd(), cpCmd(), versionCmd())
 
 	return cmd.Execute()
 }

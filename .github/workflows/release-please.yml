@@ -1,0 +1,83 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.0
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: tools/release/release-please-config.json
+          manifest-file: tools/release/.release-please-manifest.json
+
+  build-and-release:
+    name: Build and Release
+    needs: release-please
+    if: github.repository == 'rhysmcneill/ssmctl' && needs.release-please.outputs.release_created == 'true' && needs.release-please.outputs.tag_name != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Derive version from release tag
+        id: version
+        run: |
+          TAG="${{ needs.release-please.outputs.tag_name }}"
+          test -n "$TAG"
+          echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Build all platforms
+        run: make build-all VERSION=${{ steps.version.outputs.VERSION }}
+
+      - name: Generate checksums
+        run: |
+          cd bin
+          sha256sum \
+            ssmctl-darwin-amd64 \
+            ssmctl-darwin-arm64 \
+            ssmctl-linux-amd64 \
+            ssmctl-linux-arm64 \
+            ssmctl-windows-amd64.exe \
+            ssmctl-windows-arm64.exe > checksums.txt
+
+      - name: Verify checksum manifest
+        run: |
+          cd bin
+          for file in \
+            ssmctl-darwin-amd64 \
+            ssmctl-darwin-arm64 \
+            ssmctl-linux-amd64 \
+            ssmctl-linux-arm64 \
+            ssmctl-windows-amd64.exe \
+            ssmctl-windows-arm64.exe; do
+            grep -Eq "^[0-9a-f]{64}[[:space:]]+${file}$" checksums.txt
+          done
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v2.6.1
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          fail_on_unmatched_files: true
+          files: |
+            bin/ssmctl-*
+            bin/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

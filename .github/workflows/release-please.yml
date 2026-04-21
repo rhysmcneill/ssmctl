@@ -81,3 +81,30 @@ jobs:
             bin/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          SHA_DARWIN_AMD64=$(awk '/ssmctl-darwin-amd64/{print $1}' bin/checksums.txt)
+          SHA_DARWIN_ARM64=$(awk '/ssmctl-darwin-arm64/{print $1}' bin/checksums.txt)
+          SHA_LINUX_AMD64=$(awk  '/ssmctl-linux-amd64/{print $1}'  bin/checksums.txt)
+          SHA_LINUX_ARM64=$(awk  '/ssmctl-linux-arm64/{print $1}'  bin/checksums.txt)
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/rhysmcneill/homebrew-ssmctl.git" tap
+          cd tap
+
+          sed -i \
+            -e "s/version \".*\"/version \"${VERSION}\"/" \
+            -e "s|sha256 \".*\" # darwin-amd64|sha256 \"${SHA_DARWIN_AMD64}\" # darwin-amd64|" \
+            -e "s|sha256 \".*\" # darwin-arm64|sha256 \"${SHA_DARWIN_ARM64}\" # darwin-arm64|" \
+            -e "s|sha256 \".*\" # linux-amd64|sha256 \"${SHA_LINUX_AMD64}\" # linux-amd64|" \
+            -e "s|sha256 \".*\" # linux-arm64|sha256 \"${SHA_LINUX_ARM64}\" # linux-arm64|" \
+            Formula/ssmctl.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/ssmctl.rb
+          git commit -m "chore: bump ssmctl to v${VERSION}"
+          git push

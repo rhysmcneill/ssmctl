@@ -4,21 +4,35 @@ A lightweight CLI for managing AWS SSM connections, remote command execution, an
 
 ---
 
-## 🚧 Status
+## Contents
 
-**Work in progress.**
-
-This project is currently under active development. The features below describe the intended functionality for the first version (v1), but they may not be fully implemented yet.
+- [Features](#features)
+  - [connect](#connect-to-an-instance)
+  - [run](#run-a-command)
+  - [cp upload](#upload-a-file)
+  - [cp download](#download-a-file)
+  - [version](#show-version)
+- [Targets](#targets)
+- [Global Flags](#global-flags)
+- [Installation](#installation)
+- [Requirements](#requirements)
+- [Design Goals](#design-goals)
+- [Project Structure](#project-structure)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## 🎯 Planned Features (v1)
+## Features
 
 ### Connect to an instance
 
 ```bash
 ssmctl connect <target>
 ```
+
+Starts an interactive SSM session. Requires the [AWS Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
 
 ---
 
@@ -34,6 +48,8 @@ Example:
 ssmctl run web-1 -- uname -a
 ```
 
+Stdout and stderr are streamed to your terminal. The exit code of the remote command is propagated.
+
 ---
 
 ### Upload a file
@@ -42,6 +58,8 @@ ssmctl run web-1 -- uname -a
 ssmctl cp ./file.txt <target>:/tmp/file.txt
 ```
 
+> **Note:** uploads are limited to ~2 MB (SSM `SendCommand` document size).
+
 ---
 
 ### Download a file
@@ -49,6 +67,8 @@ ssmctl cp ./file.txt <target>:/tmp/file.txt
 ```bash
 ssmctl cp <target>:/var/log/app.log ./app.log
 ```
+
+> **Note:** downloads are limited to ~36 KB (SSM `GetCommandInvocation` output size).
 
 ---
 
@@ -60,82 +80,113 @@ ssmctl version
 
 ---
 
-## 🎯 Targets
+## Targets
 
-A `<target>` will support:
+A `<target>` can be:
 
-- EC2 instance ID  
-  `i-0123456789abcdef0`
-
-- Instance Name tag  
-  `web-1`
+- An EC2 instance ID — `i-0123456789abcdef0`
+- An EC2 Name tag — `web-1`
 
 Resolution strategy:
 
-- If input starts with `i-` → treated as instance ID  
-- Otherwise → resolved via EC2 Name tag  
+- Input starting with `i-` is treated as an instance ID directly.
+- Everything else is looked up via the EC2 `Name` tag.
 
 ---
 
-## ⚙️ Planned Global Flags
+## Global Flags
 
 ```bash
---profile, -p   AWS profile (defaults to AWS_PROFILE)
---region, -r    AWS region
---output, -o    Output format: text | json
---debug, -d     Enable debug logging
---timeout, -t   Command timeout
+--profile, -p   AWS profile (defaults to AWS_PROFILE env var)
+--region,  -r   AWS region
+--output,  -o   Output format: text | json  (default: text)
+--debug,   -d   Enable debug logging
+--timeout, -t   Timeout for remote commands (default: 60s)
 ```
 
 ---
 
-## 🧠 Design Goals
+## Installation
 
-- Simple, ergonomic CLI (inspired by `ssh` and `scp`)
-- No need for SSH keys or open ports
-- Built on AWS SSM
-- Works with existing AWS credentials/config
-- Scriptable (`--output json`)
+### Download a release binary (recommended)
+
+Pre-built binaries for Linux, macOS (Intel + Apple Silicon), and Windows are attached to every [GitHub release](https://github.com/rhysmcneill/ssmctl/releases).
+
+```bash
+# Example — adjust version and platform as needed
+curl -L https://github.com/rhysmcneill/ssmctl/releases/latest/download/ssmctl-linux-amd64 \
+  -o /usr/local/bin/ssmctl && chmod +x /usr/local/bin/ssmctl
+```
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap rhysmcneill/ssmctl
+brew install ssmctl
+```
 
 ---
 
-## 🏗 Planned Project Structure
+## Requirements
+
+- AWS credentials configured (environment variables, `~/.aws/credentials`, or an IAM role)
+- The target EC2 instance must have the [SSM Agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html) installed and running
+- For `connect`, the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) must be installed locally
+
+---
+
+## Design Goals
+
+- Simple, ergonomic CLI (inspired by `ssh` and `scp`)
+- No SSH keys or open inbound ports required
+- Built entirely on AWS SSM
+- Works with existing AWS credentials and config
+- Scriptable via `--output json`
+
+---
+
+## Project Structure
 
 ```text
 ssmctl/
-├── cmd/ssmctl/main.go
+├── cmd/ssmctl/          # binary entry point
+├── e2e/                 # end-to-end tests
 ├── internal/
-│   ├── cmd/
-│   ├── app/
-│   ├── config/
-│   ├── ssm/
-│   ├── output/
-│   └── version/
+│   ├── app/             # application wiring (AWS client setup)
+│   ├── cmd/             # Cobra command definitions
+│   ├── config/          # flag validation and configuration
+│   ├── output/          # text / JSON output formatting
+│   ├── ssm/             # SSM and EC2 API calls
+│   └── version/         # build-time version variables
+├── tools/release/       # release-please configuration
 ├── go.mod
 └── go.sum
 ```
 
 ---
 
-## 📌 Roadmap
+## Roadmap
 
-- [ ] `connect` via SSM session manager  
-- [ ] `run` command execution via `SendCommand`  
-- [ ] `cp` upload (local → remote)  
-- [ ] `cp` download (remote → local)  
-- [ ] target resolution (instance ID + Name tag)  
-- [ ] structured output (`text` / `json`)  
-- [ ] timeout + context handling  
-- [ ] basic error handling and validation  
-
----
-
-## 🤝 Contributing
-
-For contributing check out our `CONTRIBUTING.md`.
+- [x] `connect` via SSM Session Manager
+- [x] `run` command execution via `SendCommand`
+- [x] `cp` upload (local → remote)
+- [x] `cp` download (remote → local)
+- [x] target resolution (instance ID + Name tag)
+- [x] structured output (`text` / `json`)
+- [x] timeout + context handling
+- [x] basic error handling and validation
+- [ ] Homebrew formula
+- [ ] shell completion (`bash`, `zsh`, `fish`)
+- [ ] `--output json` support for `connect`
 
 ---
 
-## 📄 License
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## License
 
 MIT License

@@ -41,7 +41,7 @@ func buildBinary() (string, func(), error) {
 		return "", nil, err
 	}
 
-	cleanup := func() { os.RemoveAll(dir) }
+	cleanup := func() { _ = os.RemoveAll(dir) }
 
 	bin := filepath.Join(dir, "ssmctl")
 

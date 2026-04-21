@@ -7,10 +7,14 @@ LDFLAGS  = -ldflags "\
 	-X github.com/rhysmcneill/ssmctl/internal/version.Commit=$(COMMIT) \
 	-X github.com/rhysmcneill/ssmctl/internal/version.BuildDate=$(DATE)"
 
-.PHONY: build build-all test lint install
+BINARY   = bin/ssmctl
+
+.PHONY: build build-all test test-cover lint fmt vet install setup e2e e2e-aws ci
+
+# ── Build ──────────────────────────────────────────────────────────────────────
 
 build:
-	go build $(LDFLAGS) -o bin/ssmctl ./cmd/ssmctl
+	go build $(LDFLAGS) -o $(BINARY) ./cmd/ssmctl
 
 build-all:
 	GOOS=linux   GOARCH=amd64 go build $(LDFLAGS) -o bin/ssmctl-linux-amd64       ./cmd/ssmctl
@@ -20,11 +24,44 @@ build-all:
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o bin/ssmctl-windows-amd64.exe ./cmd/ssmctl
 	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o bin/ssmctl-windows-arm64.exe ./cmd/ssmctl
 
+install:
+	go install $(LDFLAGS) ./cmd/ssmctl
+
+# ── Test ───────────────────────────────────────────────────────────────────────
+
 test:
 	go test ./...
+
+test-cover:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out
+
+# Run CLI smoke tests against the compiled binary (no AWS required).
+e2e: build
+	go test ./e2e/ -v -count=1
+
+# Run full AWS integration tests (requires real AWS credentials).
+e2e-aws: build
+	go test -tags e2e ./e2e/ -v -count=1
+
+# ── Code quality ───────────────────────────────────────────────────────────────
+
+fmt:
+	gofmt -w -s .
+
+vet:
+	go vet ./...
 
 lint:
 	golangci-lint run
 
-install:
-	go install $(LDFLAGS) ./cmd/ssmctl
+# ── Developer setup ────────────────────────────────────────────────────────────
+
+# Install development tooling.  Run once after cloning.
+setup:
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# ── CI ─────────────────────────────────────────────────────────────────────────
+
+# Full local CI check — mirrors what the CI workflow runs on PRs.
+ci: vet test build e2e

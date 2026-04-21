@@ -10,9 +10,10 @@ import (
 
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Print version information",
-		Args:  cobra.NoArgs,
+		Use:               "version",
+		Short:             "Print version information",
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error { return nil },
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Printf("version: %s\ncommit:  %s\nbuilt:   %s\n", version.Version, version.Commit, version.BuildDate)
 			return nil

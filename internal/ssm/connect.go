@@ -13,7 +13,7 @@ import (
 // StartSession starts an interactive SSM session with a target instance
 func StartSession(ctx context.Context, client *ssm.Client, instanceID, region, profile string) error {
 	if region == "" {
-		return fmt.Errorf("region is required for SSM session (set --region or AWS_DEFAULT_REGION)")
+		return fmt.Errorf("could not determine AWS region: set --region, AWS_REGION, AWS_DEFAULT_REGION, or configure a default region in ~/.aws/config")
 	}
 
 	resp, err := client.StartSession(ctx, &ssm.StartSessionInput{

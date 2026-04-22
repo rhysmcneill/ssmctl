@@ -38,6 +38,14 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
+	// Sync the resolved region back onto cfg so commands that need to pass the
+	// region explicitly (e.g. the session-manager-plugin invocation) get the
+	// value from AWS_REGION / AWS_DEFAULT_REGION / ~/.aws/config, not just
+	// the --region flag.
+	if cfg.Region == "" {
+		cfg.Region = awsCfg.Region
+	}
+
 	return &App{
 		Config:    cfg,
 		SSMClient: ssm.NewFromConfig(awsCfg),

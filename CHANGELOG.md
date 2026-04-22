@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/rhysmcneill/ssmctl/compare/v1.0.0...v1.0.1) (2026-04-22)
+
+
+### Bug Fixes
+
+* **cmd:** solve evaluation on AWS_REGION, AWS_DEFAULT_REGION and ~/.aws/config ([#5](https://github.com/rhysmcneill/ssmctl/issues/5)) ([3d6dc66](https://github.com/rhysmcneill/ssmctl/commit/3d6dc669948cd6a326c19966aa16775d67196dd5))
+
 ## [1.0.0](https://github.com/rhysmcneill/ssmctl/compare/v0.1.0...v1.0.0) (2026-04-21)
 
 

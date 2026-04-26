@@ -126,6 +126,7 @@ Use the imperative mood in `<message>` (e.g., "add support for..." not "added su
 | `style` | Code formatting (no logic changes) |
 | `ci` | CI/CD configuration changes |
 | `release` | Release config updates |
+| `infra` | Infrastructure updates |
 
 ---
 

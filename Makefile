@@ -48,6 +48,7 @@ e2e-aws: build
 
 fmt:
 	gofmt -w -s .
+	goimports -w .
 
 vet:
 	go vet ./...
@@ -60,6 +61,8 @@ lint:
 # Install development tooling.  Run once after cloning.
 setup:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install golang.org/x/tools/cmd/goimports@latest
+
 
 # ── CI ─────────────────────────────────────────────────────────────────────────
 

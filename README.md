@@ -175,7 +175,7 @@ ssmctl/
 - [x] structured output (`text` / `json`)
 - [x] timeout + context handling
 - [x] basic error handling and validation
-- [ ] Homebrew formula
+- [x] Homebrew formula
 - [ ] shell completion (`bash`, `zsh`, `fish`)
 - [ ] `--output json` support for `connect`
 

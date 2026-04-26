@@ -21,11 +21,11 @@ func (m *mockEC2Client) DescribeInstances(_ context.Context, _ *ec2.DescribeInst
 
 func TestResolveTarget(t *testing.T) {
 	tests := []struct {
-		name      string
-		target    string
-		mockEC2   EC2DescribeInstancesAPI
-		wantID    string
-		wantErr   bool
+		name    string
+		target  string
+		mockEC2 EC2DescribeInstancesAPI
+		wantID  string
+		wantErr bool
 	}{
 		{
 			name:    "instance ID passthrough",

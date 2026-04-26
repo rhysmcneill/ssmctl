@@ -1,0 +1,19 @@
+name: Feature Request
+description: Suggest an improvement
+title: "feat: "
+
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Description
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered

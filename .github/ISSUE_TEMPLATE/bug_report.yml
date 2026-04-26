@@ -1,0 +1,41 @@
+name: Bug Report
+description: Report a bug
+title: "bug: "
+labels:
+  - bug
+
+body:
+  - type: input
+    id: version
+    attributes:
+      label: ssmctl version
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+
+  - type: input
+    id: aws_region
+    attributes:
+      label: AWS Region
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command Run
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behaviour
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behaviour
+
+  - type: textarea
+    id: errors
+    attributes:
+      label: Full Error Output

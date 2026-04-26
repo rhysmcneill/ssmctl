@@ -37,7 +37,7 @@ test-cover:
 	go tool cover -func=coverage.out
 
 # Run CLI smoke tests against the compiled binary (no AWS required).
-e2e: build
+e2e:
 	go test ./e2e/ -v -count=1
 
 # Run full AWS integration tests (requires real AWS credentials).

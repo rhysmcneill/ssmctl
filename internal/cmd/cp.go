@@ -33,14 +33,14 @@ Note: uploads are limited to ~2MB; downloads to ~36KB.`,
 			case srcRemote && !dstRemote:
 				instanceID, err := ssmlib.ResolveTarget(cmd.Context(), a.EC2Client, srcInstance)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve source instance: %w", err)
 				}
 				return ssmlib.Download(cmd.Context(), a.SSMClient, instanceID, srcPath, dstPath, a.Config.Timeout)
 
 			case !srcRemote && dstRemote:
 				instanceID, err := ssmlib.ResolveTarget(cmd.Context(), a.EC2Client, dstInstance)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve destination instance: %w", err)
 				}
 				return ssmlib.Upload(cmd.Context(), a.SSMClient, instanceID, srcPath, dstPath, a.Config.Timeout)
 

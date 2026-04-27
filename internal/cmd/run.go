@@ -28,12 +28,12 @@ func runCmd() *cobra.Command {
 
 			instanceID, err := ssmlib.ResolveTarget(cmd.Context(), a.EC2Client, target)
 			if err != nil {
-				return err
+				return fmt.Errorf("resolve target: %w", err)
 			}
 
 			result, err := ssmlib.RunCommand(cmd.Context(), a.SSMClient, instanceID, command, a.Config.Timeout)
 			if err != nil {
-				return err
+				return fmt.Errorf("run command: %w", err)
 			}
 
 			if result.Stdout != "" {

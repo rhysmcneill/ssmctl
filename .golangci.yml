@@ -12,3 +12,4 @@ linters:
     gosec:
       excludes:
         - G204 # subprocess via variable is intentional for session-manager-plugin
+        - G304

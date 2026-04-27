@@ -26,7 +26,7 @@ func ParseArg(s string) (instance, path string, isRemote bool) {
 
 // Upload copies a local file to a remote instance via SSM.
 // Practical limit: ~2MB.
-func Upload(ctx context.Context, client SSMRunAPI, instanceID, localPath, remotePath string, timeout time.Duration) error {
+func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePath string, timeout time.Duration) error {
 	data, err := os.ReadFile(localPath)
 	if err != nil {
 		return fmt.Errorf("failed to read local file: %w", err)
@@ -78,7 +78,7 @@ func Upload(ctx context.Context, client SSMRunAPI, instanceID, localPath, remote
 
 // Download copies a remote file to a local path via SSM.
 // Practical limit: ~36KB due to SSM stdout truncation.
-func Download(ctx context.Context, client SSMRunAPI, instanceID, remotePath, localPath string, timeout time.Duration) error {
+func Download(ctx context.Context, client RunAPI, instanceID, remotePath, localPath string, timeout time.Duration) error {
 	result, err := RunCommand(ctx, client, instanceID,
 		[]string{fmt.Sprintf("cat %s | base64", remotePath)},
 		timeout,
@@ -95,7 +95,7 @@ func Download(ctx context.Context, client SSMRunAPI, instanceID, remotePath, loc
 		return fmt.Errorf("failed to decode file content: %w", err)
 	}
 
-	if err := os.WriteFile(localPath, data, 0o644); err != nil {
+	if err := os.WriteFile(localPath, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write local file: %w", err)
 	}
 

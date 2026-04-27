@@ -1,3 +1,6 @@
+// Package ssm provides utilities for interacting with AWS Systems Manager,
+// including session management, remote command execution, and file transfers
+// to EC2 instances.
 package ssm
 
 import (
@@ -11,9 +14,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
 
-// SSMRunAPI is the subset of ssm.Client used by RunCommand.
+// RunAPI is the subset of ssm.Client used by RunCommand.
 // *ssm.Client satisfies this interface automatically.
-type SSMRunAPI interface {
+type RunAPI interface {
 	SendCommand(ctx context.Context, in *ssm.SendCommandInput, opts ...func(*ssm.Options)) (*ssm.SendCommandOutput, error)
 	GetCommandInvocation(ctx context.Context, in *ssm.GetCommandInvocationInput, opts ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error)
 }
@@ -22,13 +25,17 @@ type SSMRunAPI interface {
 // Overridden in tests to avoid slow ticker waits.
 var pollInterval = 2 * time.Second
 
+// Result contains the output and exit code from a remote command execution.
 type Result struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
 }
 
-func RunCommand(ctx context.Context, client SSMRunAPI, instanceID string, command []string, timeout time.Duration) (*Result, error) {
+// RunCommand sends a command to an EC2 instance via Systems Manager and waits
+// for completion. It polls for the command invocation status until the command
+// finishes or the context is cancelled. Returns the command output and exit code.
+func RunCommand(ctx context.Context, client RunAPI, instanceID string, command []string, timeout time.Duration) (*Result, error) {
 	resp, err := client.SendCommand(ctx, &ssm.SendCommandInput{
 		InstanceIds:  []string{instanceID},
 		DocumentName: aws.String("AWS-RunShellScript"),
@@ -49,7 +56,7 @@ func RunCommand(ctx context.Context, client SSMRunAPI, instanceID string, comman
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
 		case <-ticker.C:
 			inv, err := client.GetCommandInvocation(ctx, &ssm.GetCommandInvocationInput{
 				CommandId:  aws.String(commandID),

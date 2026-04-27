@@ -1,6 +1,11 @@
+// Package cmd provides CLI comamnds for ssmctl, including connect, run, and cp
+// subcommands. Each command is implemented as a cobra.Command that operates on
+// AWS EC2 and SSM resources.
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/rhysmcneill/ssmctl/internal/app"
@@ -17,7 +22,7 @@ func connectCmd() *cobra.Command {
 
 			instanceID, err := ssmlib.ResolveTarget(cmd.Context(), a.EC2Client, args[0])
 			if err != nil {
-				return err
+				return fmt.Errorf("resolve target: %w", err)
 			}
 
 			return ssmlib.StartSession(cmd.Context(), a.SSMClient, instanceID, a.Config.Region, a.Config.Profile)

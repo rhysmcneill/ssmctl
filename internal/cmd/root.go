@@ -1,7 +1,11 @@
+// Package cmd defines the CLI command structure and root command for ssmctl.
+// It handles flag parsing, AWS configuration initialization, and delegates to
+// subcommands (connect, run, cp, version).
 package cmd
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,13 +22,16 @@ type rootOptions struct {
 	Timeout time.Duration
 }
 
+// Run initializes and executes the root ssmctl command with all subcommands.
+// It sets up global flags (profile, region, output, debug, timeout), validates
+// configuration, and creates the App instance before delegating to subcommands.
 func Run() error {
 	opts := &rootOptions{}
 
 	cmd := &cobra.Command{
 		Use:   "ssmctl",
 		Short: "A lightweight CLI for managing AWS SSM connections, remote command execution, and file transfers",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := &config.Config{
 				Profile: opts.Profile,
 				Region:  opts.Region,
@@ -34,12 +41,12 @@ func Run() error {
 			}
 
 			if err := cfg.Validate(); err != nil {
-				return err
+				return fmt.Errorf("validate config: %w", err)
 			}
 
 			a, err := app.New(cfg)
 			if err != nil {
-				return err
+				return fmt.Errorf("initialize app: %w", err)
 			}
 
 			ctx := context.WithValue(cmd.Context(), app.ContextKey{}, a)
@@ -58,5 +65,8 @@ func Run() error {
 
 	cmd.AddCommand(connectCmd(), runCmd(), cpCmd(), versionCmd())
 
-	return cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		return fmt.Errorf("execute command: %w", err)
+	}
+	return nil
 }

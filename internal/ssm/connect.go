@@ -10,8 +10,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
+// SSMClientAPI is the superset of SSM client methods used by this package.
+// It combines RunAPI (used by RunCommand, Upload, Download) with StartSession
+// so that a single interface can be stored in app.App and mocked in tests.
+// *ssm.Client satisfies this interface automatically.
+type SSMClientAPI interface {
+	RunAPI
+	StartSession(ctx context.Context, params *ssm.StartSessionInput, optFns ...func(*ssm.Options)) (*ssm.StartSessionOutput, error)
+}
+
 // StartSession starts an interactive SSM session with a target instance
-func StartSession(ctx context.Context, client *ssm.Client, instanceID, region, profile string) error {
+func StartSession(ctx context.Context, client SSMClientAPI, instanceID, region, profile string) error {
 	if region == "" {
 		return fmt.Errorf("could not determine AWS region: set --region, AWS_REGION, AWS_DEFAULT_REGION, or configure a default region in ~/.aws/config")
 	}

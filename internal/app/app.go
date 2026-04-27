@@ -13,13 +13,14 @@ import (
 
 	"github.com/rhysmcneill/ssmctl/internal/config"
 	"github.com/rhysmcneill/ssmctl/internal/output"
+	ssmlib "github.com/rhysmcneill/ssmctl/internal/ssm"
 )
 
 // App struct contains the AWS SSM and EC2 clients, configuration, and output printer for the ssmctl application.
 type App struct {
 	Config    *config.Config
-	SSMClient *ssm.Client
-	EC2Client *ec2.Client
+	SSMClient ssmlib.SSMClientAPI
+	EC2Client ssmlib.EC2DescribeInstancesAPI
 	Printer   *output.Printer
 }
 

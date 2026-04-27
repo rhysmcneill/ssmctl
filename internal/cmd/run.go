@@ -10,6 +10,14 @@ import (
 	ssmlib "github.com/rhysmcneill/ssmctl/internal/ssm"
 )
 
+type ExitCodeError struct {
+	ExitCode int
+}
+
+func (e *ExitCodeError) Error() string {
+	return fmt.Sprintf("command exited with code %d", e.ExitCode)
+}
+
 func runCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "run <target> -- <command>",
@@ -43,7 +51,7 @@ func runCmd() *cobra.Command {
 				fmt.Fprint(os.Stderr, result.Stderr)
 			}
 			if result.ExitCode != 0 {
-				os.Exit(result.ExitCode)
+				return &ExitCodeError{ExitCode: result.ExitCode}
 			}
 
 			return nil

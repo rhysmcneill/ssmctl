@@ -183,7 +183,7 @@ func TestUploadChunkWithSpecialBase64Characters(t *testing.T) {
 
 	// Create a temporary local file with the test data.
 	localFile := filepath.Join(t.TempDir(), "special_chars.bin")
-	if err := os.WriteFile(localFile, testData, 0o644); err != nil {
+	if err := os.WriteFile(localFile, testData, 0o600); err != nil {
 		t.Fatal(err)
 	}
 

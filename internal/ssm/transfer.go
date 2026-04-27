@@ -26,8 +26,12 @@ func ParseArg(s string) (instance, path string, isRemote bool) {
 
 // Upload copies a local file to a remote instance via SSM.
 // Practical limit: ~2MB.
-func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePath string, timeout time.Duration) error {
-	data, err := os.ReadFile(localPath) // #nosec G304 -- localPath is a user-supplied CLI argument, path traversal is intentional
+//
+// Safety note: base64-encoded chunks are passed to the remote shell with
+// heredoc. The 'EOF' delimiter is single-quoted, which prevents shell
+// interpretation of any characters in the chunk (i.e., +, /, =).
+func Upload(ctx context.Context, client SSMRunAPI, instanceID, localPath, remotePath string, timeout time.Duration) error {
+	data, err := os.ReadFile(localPath)
 	if err != nil {
 		return fmt.Errorf("failed to read local file: %w", err)
 	}
@@ -49,8 +53,15 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 		}
 		chunk := encoded[i:end]
 
+		// Using heredoc with single-quoted EOF delimiter for safe base64
+		// chunk embedding to prevent interpretation of special characters
+		// such as: +, /, =.
 		result, err := RunCommand(ctx, client, instanceID,
-			[]string{fmt.Sprintf("printf '%%s' '%s' | base64 -d >> %s", chunk, tempFile)},
+			[]string{fmt.Sprintf(
+				"cat << 'EOF' | base64 -d >> %s\n%s\n EOF",
+				tempFile, // Output file path
+				chunk, // base64-encoded data
+			)},
 			timeout,
 		)
 		if err != nil {
@@ -78,7 +89,7 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 
 // Download copies a remote file to a local path via SSM.
 // Practical limit: ~36KB due to SSM stdout truncation.
-func Download(ctx context.Context, client RunAPI, instanceID, remotePath, localPath string, timeout time.Duration) error {
+func Download(ctx context.Context, client SSMRunAPI, instanceID, remotePath, localPath string, timeout time.Duration) error {
 	result, err := RunCommand(ctx, client, instanceID,
 		[]string{fmt.Sprintf("cat %s | base64", remotePath)},
 		timeout,
@@ -95,7 +106,7 @@ func Download(ctx context.Context, client RunAPI, instanceID, remotePath, localP
 		return fmt.Errorf("failed to decode file content: %w", err)
 	}
 
-	if err := os.WriteFile(localPath, data, 0o600); err != nil {
+	if err := os.WriteFile(localPath, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write local file: %w", err)
 	}
 

@@ -1,19 +1,46 @@
-name: Feature Request
+name: Feature request
 description: Suggest an improvement
-title: "feat: "
+title: "[Feature]: "
 
 body:
-  - type: textarea
-    id: problem
+  - type: markdown
     attributes:
-      label: Problem Description
+      value: |
+        Please focus on the user problem first.
 
   - type: textarea
-    id: solution
+    id: problem-statement
     attributes:
-      label: Proposed Solution
+      label: Problem statement
+    validations:
+      required: true
 
   - type: textarea
-    id: alternatives
+    id: proposed-solution
     attributes:
-      label: Alternatives Considered
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives-considered
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: true
+
+  - type: dropdown
+    id: willingness-to-implement
+    attributes:
+      label: Willingness to implement
+      options:
+        - I can work on this
+        - I can work on this with guidance
+        - I cannot work on this
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context

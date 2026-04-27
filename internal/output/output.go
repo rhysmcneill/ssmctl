@@ -19,7 +19,6 @@ func (p *Printer) Print(v any) error {
 	return p.Fprint(os.Stdout, v)
 }
 
-
 // Fprint writes the value to the given writer using the configured format.
 // It supports "json" format with indentation and "text" format.
 func (p *Printer) Fprint(w io.Writer, v any) error {

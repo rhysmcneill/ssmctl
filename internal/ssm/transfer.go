@@ -26,6 +26,10 @@ func ParseArg(s string) (instance, path string, isRemote bool) {
 
 // Upload copies a local file to a remote instance via SSM.
 // Practical limit: ~2MB.
+//
+// Safety note: base64-encoded chunks are passed to the remote shell with
+// heredoc. The 'EOF' delimiter is single-quoted, which prevents shell
+// interpretation of any characters in the chunk (i.e., +, /, =).
 func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePath string, timeout time.Duration) error {
 	data, err := os.ReadFile(localPath) // #nosec G304 -- localPath is a user-supplied CLI argument, path traversal is intentional
 	if err != nil {
@@ -49,8 +53,15 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 		}
 		chunk := encoded[i:end]
 
+		// Using heredoc with single-quoted EOF delimiter for safe base64
+		// chunk embedding to prevent interpretation of special characters
+		// such as: +, /, =.
 		result, err := RunCommand(ctx, client, instanceID,
-			[]string{fmt.Sprintf("printf '%%s' '%s' | base64 -d >> %s", chunk, tempFile)},
+			[]string{
+				fmt.Sprintf("cat << 'EOF' | base64 -d >> %s", tempFile),
+				chunk,
+				"EOF",
+			},
 			timeout,
 		)
 		if err != nil {

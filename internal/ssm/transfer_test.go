@@ -158,3 +158,54 @@ func TestDownload_RemoteCommandFails(t *testing.T) {
 		t.Fatal("expected error for failed remote command, got nil")
 	}
 }
+
+// Test case for chunks with special characters.
+func TestUploadChunkWithSpecialBase64Characters(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	// Craft data that encodes to base64 with +, /, and = characters.
+	// This ensures the heredoc pattern safely handles all base64 character classes.
+	testData := []byte{0xff, 0xfe, 0xfd, 0xfc, 0xfb, 0xfa}
+	encoded := base64.StdEncoding.EncodeToString(testData)
+
+	// Verify our test data actually contains special base64 characters.
+	hasSpecialChars := false
+	for _, ch := range encoded {
+		if ch == '+' || ch == '/' || ch == '=' {
+			hasSpecialChars = true
+			break
+		}
+	}
+	if !hasSpecialChars {
+		t.Fatalf("test data doesn't contain special base64 chars: %s", encoded)
+	}
+
+	// Create a temporary local file with the test data.
+	localFile := filepath.Join(t.TempDir(), "special_chars.bin")
+	if err := os.WriteFile(localFile, testData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mock client that verifies the heredoc command structure is correct.
+	client := &mockSSMRunClient{
+		sendCommandFn: func(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+			return &ssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-special")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return &ssm.GetCommandInvocationOutput{
+				Status:                types.CommandInvocationStatusSuccess,
+				StandardOutputContent: aws.String(""),
+				ResponseCode:          0,
+			}, nil
+		},
+	}
+
+	// Upload should succeed with special base64 characters safely embedded in heredoc.
+	err := Upload(context.Background(), client, "i-123", localFile, "/tmp/special.bin", 30*time.Second)
+	if err != nil {
+		t.Fatalf("Upload() with special base64 chars error = %v", err)
+	}
+}

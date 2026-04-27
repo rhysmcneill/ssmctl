@@ -1,3 +1,6 @@
+// Package ssm provides utilities for interacting with AWS Systems Manager,
+// including session management, remote command execution, and file transfers
+// to EC2 instances.
 package ssm
 
 import (
@@ -10,19 +13,26 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
+// EC2DescribeInstancesAPI is an interface for querying EC2 instances.
+// It abstracts the EC2 API for easier testing.
 type EC2DescribeInstancesAPI interface {
 	DescribeInstances(ctx context.Context, in *ec2.DescribeInstancesInput, opts ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error)
 }
 
+// TargetInfo contains a resolved EC2 target ID and platform metadata.
 type TargetInfo struct {
 	InstanceID string
 	Platform   types.PlatformValues
 }
 
+// IsWindows reports whether the resolved target is a Windows instance.
 func (t TargetInfo) IsWindows() bool {
 	return t.Platform == types.PlatformValuesWindows
 }
 
+// ResolveTarget converts a target identifier to an EC2 instance ID.
+// The target can be an instance ID (starting with "i-") or an instance name tag.
+// It returns an error if the instance is not found or not in running state.
 func ResolveTarget(ctx context.Context, ec2Client EC2DescribeInstancesAPI, target string) (string, error) {
 	if strings.HasPrefix(target, "i-") {
 		return target, nil
@@ -36,6 +46,7 @@ func ResolveTarget(ctx context.Context, ec2Client EC2DescribeInstancesAPI, targe
 	return info.InstanceID, nil
 }
 
+// ResolveTargetInfo resolves a target identifier and includes platform metadata.
 func ResolveTargetInfo(ctx context.Context, ec2Client EC2DescribeInstancesAPI, target string) (TargetInfo, error) {
 	if strings.HasPrefix(target, "i-") {
 		return lookupTargetByInstanceID(ctx, ec2Client, target), nil
@@ -82,7 +93,7 @@ func lookupTargetByName(ctx context.Context, ec2Client EC2DescribeInstancesAPI, 
 	})
 
 	if err != nil {
-		return TargetInfo{}, err
+		return TargetInfo{}, fmt.Errorf("describe instance: %w", err)
 	}
 
 	instance, ok := firstInstance(instances)

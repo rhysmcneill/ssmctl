@@ -43,10 +43,6 @@ jobs:
           TAG="${{ needs.release-please.outputs.tag_name }}"
           test -n "$TAG"
           echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
-
-      - name: Build all platforms
-        run: make build-all VERSION=${{ steps.version.outputs.VERSION }}
-
       - name: Generate checksums
         run: |
           cd bin
@@ -76,6 +72,20 @@ jobs:
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           fail_on_unmatched_files: true
+          append_body: true
+          body: |
+            ## Installation
+            **Homebrew:**
+            ```sh
+            brew tap rhysmcneill/ssmctl
+            brew install ssmctl
+            ```
+            **Direct download:**
+            Download the appropriate binary for your platform from the assets below, make it executable, and move it onto your `PATH`.
+            **Verify checksum:**
+            ```sh
+            sha256sum --check checksums.txt
+            ```
           files: |
             bin/ssmctl-*
             bin/checksums.txt

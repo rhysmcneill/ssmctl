@@ -30,6 +30,7 @@ func TestMain(m *testing.M) {
 	defer cleanup()
 
 	binaryPath = bin
+	//nolint:gocritic // os.Exit(m.Run()) is the standard TestMain pattern.
 	os.Exit(m.Run())
 }
 
@@ -38,7 +39,7 @@ func TestMain(m *testing.M) {
 func buildBinary() (string, func(), error) {
 	dir, err := os.MkdirTemp("", "ssmctl-e2e-*")
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("create temp directory: %w", err)
 	}
 
 	cleanup := func() { _ = os.RemoveAll(dir) }
@@ -69,7 +70,7 @@ func moduleRoot() (string, error) {
 	// os.Getwd() as a fallback since the test binary runs from the package dir.
 	dir, err := os.Getwd()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get working directory: %w", err)
 	}
 
 	for {

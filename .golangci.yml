@@ -1,0 +1,15 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - gosec
+    - staticcheck
+    - revive
+    - gocritic
+    - wrapcheck
+  settings:
+    gosec:
+      excludes:
+        - G204 # subprocess via variable is intentional for session-manager-plugin
+        - G304 # User provided local paths can be expected to be safe.

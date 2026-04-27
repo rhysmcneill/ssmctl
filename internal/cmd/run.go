@@ -33,7 +33,7 @@ ssmctl does not currently select automatically.`,
 
 			targetInfo, err := ssmlib.ResolveTargetInfo(cmd.Context(), a.EC2Client, target)
 			if err != nil {
-				return err
+				return fmt.Errorf("resolve target: %w", err)
 			}
 			if targetInfo.IsWindows() {
 				return fmt.Errorf("run does not currently support Windows targets; Windows targets require AWS-RunPowerShellScript, which ssmctl does not currently select automatically")
@@ -41,7 +41,7 @@ ssmctl does not currently select automatically.`,
 
 			result, err := ssmlib.RunCommand(cmd.Context(), a.SSMClient, targetInfo.InstanceID, command, a.Config.Timeout)
 			if err != nil {
-				return err
+				return fmt.Errorf("run command: %w", err)
 			}
 
 			if result.Stdout != "" {

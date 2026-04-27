@@ -37,7 +37,7 @@ base64, which are not available by default on Windows targets.`,
 			case srcRemote && !dstRemote:
 				target, err := ssmlib.ResolveTargetInfo(cmd.Context(), a.EC2Client, srcInstance)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve source instance: %w", err)
 				}
 				if target.IsWindows() {
 					return fmt.Errorf("cp does not currently support Windows targets; remote copy relies on POSIX utilities such as cat and base64")
@@ -47,7 +47,7 @@ base64, which are not available by default on Windows targets.`,
 			case !srcRemote && dstRemote:
 				target, err := ssmlib.ResolveTargetInfo(cmd.Context(), a.EC2Client, dstInstance)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve destination instance: %w", err)
 				}
 				if target.IsWindows() {
 					return fmt.Errorf("cp does not currently support Windows targets; remote copy relies on POSIX utilities such as cat and base64")

@@ -63,7 +63,7 @@ func TestParseArg(t *testing.T) {
 }
 
 // alwaysSucceedClient returns success for every RunCommand call.
-func alwaysSucceedClient() SSMRunAPI {
+func alwaysSucceedClient() RunAPI {
 	return &mockSSMRunClient{
 		sendCommandFn: func(_ context.Context, _ *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 			return &ssm.SendCommandOutput{
@@ -85,7 +85,7 @@ func TestUpload(t *testing.T) {
 	t.Cleanup(func() { pollInterval = 2 * time.Second })
 
 	localFile := filepath.Join(t.TempDir(), "upload.txt")
-	if err := os.WriteFile(localFile, []byte("hello upload"), 0o644); err != nil {
+	if err := os.WriteFile(localFile, []byte("hello upload"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

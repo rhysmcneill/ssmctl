@@ -23,20 +23,38 @@ Thank you for your interest in contributing to ssmctl! This document covers ever
 git clone https://github.com/rhysmcneill/ssmctl.git
 cd ssmctl
 
-# 2. Install development tools (golangci-lint)
+# 2. Install pre-commit (one-time, per machine)
+pip install pre-commit   # or: brew install pre-commit
+
+# 3. Install development tools (golangci-lint, goimports, pre-commit hooks)
 make setup
 
-# 3. Verify the build
+# 4. Verify the build
 make build
 
-# 4. Run the unit test suite
+# 5. Run the unit test suite
 make test
 
-# 5. Run the linter
+# 6. Run the linter
 make lint
 ```
 
 The compiled binary lands at `bin/ssmctl`.
+
+`make setup` also installs the project's [pre-commit](https://pre-commit.com/)
+hooks (configured in `.pre-commit-config.yaml`). Hooks run automatically on
+every `git commit` and mirror the local Make targets — formatting, `go vet`,
+`golangci-lint`, plus light file-hygiene checks (trailing whitespace, final
+newlines, merge-conflict markers, accidental large binaries) and a `gosec`
+static-security pass. To run them manually across the whole tree:
+
+```bash
+pre-commit run --all-files
+```
+
+If `pre-commit` isn't on your `PATH` when `make setup` runs, the make target
+prints an install hint and continues — you can re-run `make setup` after
+installing it.
 
 ---
 

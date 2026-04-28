@@ -218,6 +218,6 @@ MIT License
 
 Thanks to everyone who has contributed to ssmctl!
 
-[![Contributors](https://contrib.rocks/image?repo=rhysmcneill/ssmctl)](https://github.com/rhysmcneill/ssmctl/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=rhysmcneill/ssmctl&max=100)](https://github.com/rhysmcneill/ssmctl/graphs/contributors)
 
 ---

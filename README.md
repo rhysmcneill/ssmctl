@@ -18,6 +18,7 @@ A lightweight CLI for managing AWS SSM connections, remote command execution, an
 - [Global Flags](#global-flags)
 - [Installation](#installation)
 - [Requirements](#requirements)
+- [Target OS support](#target-os-support)
 - [Design Goals](#design-goals)
 - [Project Structure](#project-structure)
 - [Roadmap](#roadmap)
@@ -135,6 +136,23 @@ brew install ssmctl
 - AWS credentials configured (environment variables, `~/.aws/credentials`, or an IAM role)
 - The target EC2 instance must have the [SSM Agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html) installed and running
 - For `connect`, the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) must be installed locally
+
+---
+
+## Target OS support
+
+| Command | Linux/macOS targets | Windows targets |
+|---------|---------------------|-----------------|
+| `connect` | Supported | Supported when the Session Manager plugin is installed locally |
+| `run` | Supported via `AWS-RunShellScript` | Not currently supported; Windows targets require `AWS-RunPowerShellScript` |
+| `cp` | Supported | Not currently supported; transfers rely on POSIX utilities such as `cat` and `base64` |
+
+The `run` and `cp` commands currently build shell commands for POSIX-like
+targets. When EC2 metadata identifies a Windows target, these commands return a
+clear unsupported-target error instead of running a shell command that would fail
+remotely. Use `connect` for Windows targets, or run PowerShell commands through
+AWS Systems Manager directly until `ssmctl` gains native Windows command and
+transfer support.
 
 ---
 

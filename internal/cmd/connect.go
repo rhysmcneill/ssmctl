@@ -20,6 +20,8 @@ func connectCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a := cmd.Context().Value(app.ContextKey{}).(*app.App)
 
+			// Keep connect available for Windows targets: unlike run/cp, an
+			// interactive SSM session does not build POSIX shell commands locally.
 			instanceID, err := ssmlib.ResolveTarget(cmd.Context(), a.EC2Client, args[0])
 			if err != nil {
 				return fmt.Errorf("resolve target: %w", err)

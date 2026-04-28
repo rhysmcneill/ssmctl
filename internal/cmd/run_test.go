@@ -40,7 +40,10 @@ func executeRunCmd(ctx context.Context, a *app.App, args []string) error {
 	root := &cobra.Command{Use: "ssmctl", SilenceErrors: true, SilenceUsage: true}
 	root.AddCommand(runCmd())
 	root.SetArgs(args)
-	return root.ExecuteContext(context.WithValue(ctx, app.ContextKey{}, a))
+	if err := root.ExecuteContext(context.WithValue(ctx, app.ContextKey{}, a)); err != nil {
+		return err //nolint:wrapcheck // cobra unwraps RunE errors; wrapping here would hide *ExitCodeError
+	}
+	return nil
 }
 
 func TestRunCmd_NonZeroExitCodeReturnsExitCodeError(t *testing.T) {

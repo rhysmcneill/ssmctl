@@ -19,7 +19,7 @@ import (
 // App struct contains the AWS SSM and EC2 clients, configuration, and output printer for the ssmctl application.
 type App struct {
 	Config    *config.Config
-	SSMClient ssmlib.SSMClientAPI
+	SSMClient ssmlib.ClientAPI
 	EC2Client ssmlib.EC2DescribeInstancesAPI
 	Printer   *output.Printer
 }

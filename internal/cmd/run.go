@@ -10,6 +10,8 @@ import (
 	ssmlib "github.com/rhysmcneill/ssmctl/internal/ssm"
 )
 
+// ExitCodeError is returned by RunE when a remote command exits with a
+// non-zero status. main inspects this type to forward the exact exit code.
 type ExitCodeError struct {
 	ExitCode int
 }

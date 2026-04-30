@@ -96,6 +96,14 @@ func lookupTargetByName(ctx context.Context, ec2Client EC2DescribeInstancesAPI, 
 		return TargetInfo{}, fmt.Errorf("describe instance: %w", err)
 	}
 
+	if noInstancesFound(instances) {
+		return TargetInfo{}, fmt.Errorf("no instances found for name: %s", target)
+	}
+
+	if ids := allInstanceIDs(instances); len(ids) > 1 {
+		return TargetInfo{}, fmt.Errorf("multiple running instances match Name %q (%s) — use an instance ID instead", target, strings.Join(ids, ", "))
+	}
+
 	instance, ok := firstInstance(instances)
 	if !ok {
 		return TargetInfo{}, fmt.Errorf("instance not found: %s", target)
@@ -110,6 +118,27 @@ func firstInstance(instances *ec2.DescribeInstancesOutput) (types.Instance, bool
 	}
 
 	return instances.Reservations[0].Instances[0], true
+}
+
+func allInstanceIDs(instances *ec2.DescribeInstancesOutput) []string {
+	var ids []string
+	if instances == nil {
+		return ids
+	}
+	for _, r := range instances.Reservations {
+		for _, inst := range r.Instances {
+			ids = append(ids, aws.ToString(inst.InstanceId))
+		}
+	}
+	return ids
+}
+
+func noInstancesFound(instances *ec2.DescribeInstancesOutput) bool {
+	if instances == nil || len(instances.Reservations) == 0 {
+		return true
+	}
+
+	return false
 }
 
 func targetInfoFromInstance(fallbackID string, instance types.Instance) TargetInfo {

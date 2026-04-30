@@ -3,6 +3,7 @@ package ssm
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -84,6 +85,37 @@ func TestResolveTarget(t *testing.T) {
 			wantID:  "",
 			wantErr: true,
 		},
+		{
+			name:   "multiple instances across reservations returns error",
+			target: "my-server",
+			mockEC2: &mockEC2Client{
+				output: &ec2.DescribeInstancesOutput{
+					Reservations: []types.Reservation{
+						{Instances: []types.Instance{{InstanceId: aws.String("i-aaa")}}},
+						{Instances: []types.Instance{{InstanceId: aws.String("i-bbb")}}},
+					},
+				},
+			},
+			wantID:  "",
+			wantErr: true,
+		},
+		{
+			name:   "multiple instances in single reservation returns error",
+			target: "my-server",
+			mockEC2: &mockEC2Client{
+				output: &ec2.DescribeInstancesOutput{
+					Reservations: []types.Reservation{
+						{Instances: []types.Instance{
+							{InstanceId: aws.String("i-aaa")},
+							{InstanceId: aws.String("i-bbb")},
+							{InstanceId: aws.String("i-ccc")},
+						}},
+					},
+				},
+			},
+			wantID:  "",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -141,6 +173,17 @@ func TestResolveTargetInfo(t *testing.T) {
 			}},
 			wantErr: true,
 		},
+		{
+			name:   "multiple instances match name still errors",
+			target: "my-server",
+			mockEC2: &mockEC2Client{output: &ec2.DescribeInstancesOutput{
+				Reservations: []types.Reservation{
+					{Instances: []types.Instance{{InstanceId: aws.String("i-aaa"), Platform: types.PlatformValuesWindows}}},
+					{Instances: []types.Instance{{InstanceId: aws.String("i-bbb")}}},
+				},
+			}},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -156,5 +199,32 @@ func TestResolveTargetInfo(t *testing.T) {
 				t.Errorf("ResolveTargetInfo().IsWindows() = %v, want %v", info.IsWindows(), tt.wantWindows)
 			}
 		})
+	}
+}
+
+func TestResolveTargetAmbiguousErrorMessage(t *testing.T) {
+	mock := &mockEC2Client{
+		output: &ec2.DescribeInstancesOutput{
+			Reservations: []types.Reservation{
+				{Instances: []types.Instance{{InstanceId: aws.String("i-aaa")}}},
+				{Instances: []types.Instance{{InstanceId: aws.String("i-bbb")}}},
+				{Instances: []types.Instance{{InstanceId: aws.String("i-ccc")}}},
+			},
+		},
+	}
+
+	_, err := ResolveTarget(context.Background(), mock, "my-server")
+	if err == nil {
+		t.Fatal("expected error for ambiguous name, got nil")
+	}
+
+	msg := err.Error()
+	for _, id := range []string{"i-aaa", "i-bbb", "i-ccc"} {
+		if !strings.Contains(msg, id) {
+			t.Errorf("error message %q does not contain instance ID %s", msg, id)
+		}
+	}
+	if !strings.Contains(msg, "my-server") {
+		t.Errorf("error message %q does not contain the target name", msg)
 	}
 }

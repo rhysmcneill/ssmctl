@@ -52,3 +52,7 @@ bin/
 .agents/
 *.local.*
 plan.md
+# AI Agent Configuration (managed by @rhysmcneill/agentic-ai-library github.com)
+AGENTS.local.md
+.cursor/skills/
+AGENTS.md

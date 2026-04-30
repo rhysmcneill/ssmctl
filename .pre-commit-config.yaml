@@ -33,3 +33,23 @@ repos:
     hooks:
       - id: gosec
         args: [./...]
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        # Use the project's baseline if it exists so previously-known
+        # findings stay suppressed. Generate one with
+        # `detect-secrets scan > .secrets.baseline`.
+        args: [--baseline, .secrets.baseline]
+        exclude: ^(\.secrets\.baseline|go\.sum|.*\.lock)$
+
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.27.0
+    hooks:
+      - id: commitlint
+        # Enforces the conventional-commit format documented in
+        # CONTRIBUTING.md: `<type>(<scope>): <message>`. Reads
+        # `.commitlintrc.yaml` at repo root.
+        stages: [commit-msg]
+        additional_dependencies: ["@commitlint/config-conventional"]

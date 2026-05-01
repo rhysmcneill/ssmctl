@@ -1,0 +1,21 @@
+# commitlint config for ssmctl. Used by the commitlint pre-commit hook
+# (see .pre-commit-config.yaml) to enforce the convention documented in
+# CONTRIBUTING.md: `<type>(<scope>): <message>`.
+
+extends:
+  - "@commitlint/config-conventional"
+
+rules:
+  # Allowed types — keep aligned with CONTRIBUTING.md.
+  type-enum:
+    - 2
+    - always
+    - [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]
+  subject-case:
+    - 2
+    - never
+    - [start-case, pascal-case, upper-case]
+  header-max-length:
+    - 2
+    - always
+    - 100

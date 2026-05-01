@@ -1,0 +1,55 @@
+# Pre-commit hooks for ssmctl. See CONTRIBUTING.md → "Getting Started"
+# for one-time setup.
+#
+# Mirrors the project's existing Makefile targets (`make fmt`, `make
+# vet`, `make lint`) so contributors run the same checks locally that
+# CI runs on every PR. Closes #48.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+        args: [--branch, main]
+      - id: check-yaml
+      - id: check-json
+
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+      - id: go-vet
+      - id: golangci-lint
+
+  - repo: https://github.com/securego/gosec
+    rev: v2.22.4
+    hooks:
+      - id: gosec
+        args: [./...]
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        # Use the project's baseline if it exists so previously-known
+        # findings stay suppressed. Generate one with
+        # `detect-secrets scan > .secrets.baseline`.
+        args: [--baseline, .secrets.baseline]
+        exclude: ^(\.secrets\.baseline|go\.sum|.*\.lock)$
+
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.27.0
+    hooks:
+      - id: commitlint
+        # Enforces the conventional-commit format documented in
+        # CONTRIBUTING.md: `<type>(<scope>): <message>`. Reads
+        # `.commitlintrc.yaml` at repo root.
+        stages: [commit-msg]
+        additional_dependencies: ["@commitlint/config-conventional"]

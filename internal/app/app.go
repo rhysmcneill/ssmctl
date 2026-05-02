@@ -18,10 +18,11 @@ import (
 
 // App struct contains the AWS SSM and EC2 clients, configuration, and output printer for the ssmctl application.
 type App struct {
-	Config    *config.Config
-	SSMClient ssmlib.ClientAPI
-	EC2Client ssmlib.EC2DescribeInstancesAPI
-	Printer   *output.Printer
+	Config     *config.Config
+	SSMClient  ssmlib.ClientAPI
+	ListClient ssmlib.ListAPI
+	EC2Client  ssmlib.EC2DescribeInstancesAPI
+	Printer    *output.Printer
 }
 
 // ContextKey is used as a context key type. This is used to store and retrieve values from Go's context.Context.
@@ -57,10 +58,13 @@ func New(cfg *config.Config) (*App, error) {
 		cfg.Region = awsCfg.Region
 	}
 
+	ssmClient := ssm.NewFromConfig(awsCfg)
+
 	return &App{
-		Config:    cfg,
-		SSMClient: ssm.NewFromConfig(awsCfg),
-		EC2Client: ec2.NewFromConfig(awsCfg),
-		Printer:   &output.Printer{Format: cfg.Output},
+		Config:     cfg,
+		SSMClient:  ssmClient,
+		ListClient: ssmClient,
+		EC2Client:  ec2.NewFromConfig(awsCfg),
+		Printer:    &output.Printer{Format: cfg.Output},
 	}, nil
 }

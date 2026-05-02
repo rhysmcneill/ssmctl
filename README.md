@@ -9,6 +9,7 @@ A lightweight CLI for managing AWS SSM connections, remote command execution, an
 ## Contents
 
 - [Features](#features)
+  - [list](#list-instances)
   - [connect](#connect-to-an-instance)
   - [run](#run-a-command)
   - [cp upload](#upload-a-file)
@@ -29,6 +30,39 @@ A lightweight CLI for managing AWS SSM connections, remote command execution, an
 ---
 
 ## Features
+
+### List instances
+
+```bash
+ssmctl list [--filter <substring>] [--platform linux|windows]
+```
+
+Lists all EC2 instances managed by AWS Systems Manager. Instance IDs, Name tags, platform, agent version, and ping status are displayed as a table. Use `--output json` for structured output.
+
+```
+INSTANCE ID           NAME        PLATFORM   AGENT VERSION   STATUS
+i-0123456789abcdef0   web-1       Linux      3.2.2086.0      Online
+i-0987654321fedcba0   bastion-1   Linux      3.2.2086.0      Online
+i-0aabbccddeeff0011   win-app-1   Windows    3.2.2086.0      Offline
+```
+
+Filter examples:
+
+```bash
+# Substring match on Name tag
+ssmctl list --filter web
+
+# Filter by platform
+ssmctl list --platform linux
+ssmctl list --platform windows
+
+# JSON output
+ssmctl list --output json
+```
+
+Requires `ssm:DescribeInstanceInformation` and `ec2:DescribeInstances` permissions.
+
+---
 
 ### Connect to an instance
 
@@ -197,6 +231,7 @@ ssmctl/
 - [x] timeout + context handling
 - [x] basic error handling and validation
 - [x] Homebrew formula
+- [x] `ssmctl list` — instance discovery with filtering ([#50](https://github.com/rhysmcneill/ssmctl/issues/50))
 - [ ] shell completion (`bash`, `zsh`, `fish`)
 - [ ] `--output json` support for `connect`
 

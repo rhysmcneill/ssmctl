@@ -27,7 +27,7 @@ func ParseArg(s string) (instance, path string, isRemote bool) {
 // Upload copies a local file to a remote instance via SSM.
 // Practical limit: ~2MB.
 func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePath string, timeout time.Duration) error {
-	data, err := os.ReadFile(localPath)
+	data, err := os.ReadFile(localPath) // #nosec G304 -- localPath is a user-supplied CLI argument, path traversal is intentional
 	if err != nil {
 		return fmt.Errorf("failed to read local file: %w", err)
 	}

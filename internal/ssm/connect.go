@@ -50,7 +50,7 @@ func StartSession(ctx context.Context, client ClientAPI, instanceID, region, pro
 		return fmt.Errorf("session-manager-plugin not found in PATH: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, pluginPath,
+	cmd := exec.CommandContext(ctx, pluginPath, // #nosec G204 -- pluginPath resolved via exec.LookPath, not user input
 		string(respJSON),
 		region,
 		"StartSession",

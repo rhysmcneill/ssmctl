@@ -6,8 +6,8 @@ Use Closes #... or Fixes #... when applicable.
 
 ## What changed
 
-- 
-- 
+-
+-
 -
 
 ## Testing performed

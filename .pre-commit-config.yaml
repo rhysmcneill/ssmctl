@@ -25,27 +25,48 @@ repos:
     rev: v0.5.1
     hooks:
       - id: go-fmt
-      - id: go-vet
-      - id: golangci-lint
 
-  - repo: https://github.com/securego/gosec
-    rev: v2.22.4
+  - repo: local
     hooks:
+      # go-vet: dnephin's hook ignores pass_filenames overrides so we run it
+      # as a local system hook with ./... to avoid "no Go files" errors.
+      - id: go-vet
+        name: go vet
+        language: system
+        entry: go
+        args: [vet, ./...]
+        types: [go]
+        pass_filenames: false
+      # golangci-lint must be a local hook: the dnephin plugin builds it from
+      # source using its own Go toolchain which may be older than this module's
+      # go directive, causing a version mismatch. Install/upgrade with:
+      #   GOTOOLCHAIN=local go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - id: golangci-lint
+        name: golangci-lint
+        language: system
+        entry: env GOTOOLCHAIN=local golangci-lint
+        args: [run, --fix=false]
+        types: [go]
+        pass_filenames: false
+      # gosec has no .pre-commit-hooks.yaml in any release — must be local.
+      # Install: go install github.com/securego/gosec/v2/cmd/gosec@latest
       - id: gosec
+        name: gosec
+        language: system
+        entry: gosec
         args: [./...]
+        types: [go]
+        pass_filenames: false
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        # Use the project's baseline if it exists so previously-known
-        # findings stay suppressed. Generate one with
-        # `detect-secrets scan > .secrets.baseline`.
+        # Baseline suppresses known findings. Regenerate with:
+        #   detect-secrets scan > .secrets.baseline
         args: [--baseline, .secrets.baseline]
-        exclude: ^(\.secrets\.baseline|go\.sum|.*\.lock)$
-
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
-    rev: v9.27.0
+    rev: v9.25.0
     hooks:
       - id: commitlint
         # Enforces the conventional-commit format documented in

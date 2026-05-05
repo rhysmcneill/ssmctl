@@ -107,7 +107,7 @@ func Download(ctx context.Context, client RunAPI, instanceID, remotePath, localP
 		return fmt.Errorf("failed to decode file content: %w", err)
 	}
 
-	if err := os.WriteFile(localPath, data, 0o644); err != nil {
+	if err := os.WriteFile(localPath, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write local file: %w", err)
 	}
 

@@ -38,7 +38,7 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 
 	encoded := base64.StdEncoding.EncodeToString(data)
 
-	init, err := RunCommand(ctx, client, instanceID, []string{fmt.Sprintf("cat << 'EOF' > %s\nEOF", tempFile)}, timeout)
+	init, err := RunCommand(ctx, client, instanceID, []string{fmt.Sprintf("printf '' > %s", tempFile)}, timeout)
 
 	if err != nil {
 		return fmt.Errorf("failed to initialise transfer file: %w", err)
@@ -75,7 +75,7 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 
 	dir := filepath.Dir(remotePath)
 	result, err := RunCommand(ctx, client, instanceID,
-		[]string{fmt.Sprintf("cat << 'EOF' | sh\nmkdir -p %s && mv %s %s\nEOF", dir, tempFile, remotePath)},
+		[]string{fmt.Sprintf("mkdir -p %s && mv %s %s", dir, tempFile, remotePath)},
 		timeout,
 	)
 	if err != nil {

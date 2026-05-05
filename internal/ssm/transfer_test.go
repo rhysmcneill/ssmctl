@@ -194,18 +194,13 @@ func TestUploadChunkWithSpecialBase64Characters(t *testing.T) {
 			t.Logf("DEBUG: input.Parameters = %+v", input.Parameters)
 			cmds := input.Parameters["commands"]
 			// Verify chunks containing special characters (+, /, =) is embedded via heredoc
-			found := false
 
 			for _, cmd := range cmds {
-				if strings.Contains(cmd, "<< 'EOF'"){
-					found = true
-					break
+				if strings.Contains(cmd, encoded) && !strings.Contains(cmd, "<< 'EOF'") {
+					t.Errorf("expected heredoc syntax for base64 chunk, got: %s", cmd)
 				}
 			}
 
-			if !found {
-				t.Errorf("expected heredoc syntax in command, got: %v", cmds)
-			}
 
 			return &ssm.SendCommandOutput{
 				Command: &types.Command{CommandId: aws.String("cmd-special")},

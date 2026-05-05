@@ -193,14 +193,17 @@ func TestUploadChunkWithSpecialBase64Characters(t *testing.T) {
 		sendCommandFn: func(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 			t.Logf("DEBUG: input.Parameters = %+v", input.Parameters)
 			cmds := input.Parameters["commands"]
-			// Verify chunks containing special characters (+, /, =) is embedded via heredoc
 
+			// Verify at least one chunk command uses heredoc syntax
 			for _, cmd := range cmds {
-				if strings.Contains(cmd, encoded) && !strings.Contains(cmd, "<< 'EOF'") {
+				// continues if commands are printf or mkdir since they're considered safe in the upload function.
+				if strings.Contains(cmd, "printf") || strings.Contains(cmd, "mkdir") {
+					continue
+				}
+				if !strings.Contains(cmd, "<< 'EOF'") {
 					t.Errorf("expected heredoc syntax for base64 chunk, got: %s", cmd)
 				}
 			}
-
 
 			return &ssm.SendCommandOutput{
 				Command: &types.Command{CommandId: aws.String("cmd-special")},

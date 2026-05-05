@@ -90,7 +90,7 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 
 // Download copies a remote file to a local path via SSM.
 // Practical limit: ~36KB due to SSM stdout truncation.
-func Download(ctx context.Context, client SSMRunAPI, instanceID, remotePath, localPath string, timeout time.Duration) error {
+func Download(ctx context.Context, client RunAPI, instanceID, remotePath, localPath string, timeout time.Duration) error {
 	result, err := RunCommand(ctx, client, instanceID,
 		[]string{fmt.Sprintf("cat %s | base64", remotePath)},
 		timeout,

@@ -1,6 +1,6 @@
 # ssmctl
 
-[![CI](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml/badge.svg)](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml) [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://golang.org) [![Version](https://img.shields.io/github/v/tag/rhysmcneill/ssmctl)](https://github.com/rhysmcneill/ssmctl/releases) [![License](https://img.shields.io/github/license/rhysmcneill/ssmctl)](LICENSE) [![Stars](https://img.shields.io/github/stars/rhysmcneill/ssmctl)](https://github.com/rhysmcneill/ssmctl) [![Forks](https://img.shields.io/github/forks/rhysmcneill/ssmctl)](https://github.com/rhysmcneill/ssmctl/forks)
+[![CI](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml/badge.svg)](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml) [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://golang.org) [![Version](https://img.shields.io/github/v/tag/rhysmcneill/ssmctl)](https://github.com/rhysmcneill/ssmctl/releases) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Stars](https://img.shields.io/github/stars/rhysmcneill/ssmctl?style=flat)](https://github.com/rhysmcneill/ssmctl) [![Forks](https://img.shields.io/github/forks/rhysmcneill/ssmctl)](https://github.com/rhysmcneill/ssmctl/forks)
 
 A lightweight CLI for managing AWS SSM connections, remote command execution, and file transfers — designed to feel like a modern SSH/SCP replacement powered by AWS Systems Manager.
 

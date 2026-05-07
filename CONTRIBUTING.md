@@ -119,6 +119,14 @@ Aim to keep unit test coverage above 80 % for packages in `internal/`. Check cov
 make test-cover
 ```
 
+### Debug Mode Testing
+
+When making changes to AWS SDK interactions, test with the `--debug` flag: 
+
+```bash
+ssmctl --debug run i-xxx -- whoami
+```
+
 ---
 
 ## Commit Messages

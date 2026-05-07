@@ -6,6 +6,8 @@ package config
 import (
 	"fmt"
 	"time"
+	"os"
+	"log"
 )
 
 // Config holds all configuration options for ssmctl including AWS credentials,
@@ -31,5 +33,12 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("timeout must be greater than 0")
 	}
 
+	if c.Debug {
+		debugLog := log.New(os.Stderr, "[DEBUG] ", log.LstdFlags)
+		debugLog.Printf("Profile: %s\n", c.Profile)
+		debugLog.Printf("Region: %s\n", c.Region)
+		debugLog.Printf("Output: %s\n", c.Output)
+		debugLog.Printf("Timeout: %v\n", c.Timeout)
+	}
 	return nil
 }

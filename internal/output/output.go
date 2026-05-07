@@ -10,13 +10,22 @@ import (
 )
 
 // Printer formats and writes output in the specified format (text or json).
+// Out is the writer used by Print; if nil, os.Stdout is used.
 type Printer struct {
 	Format string
+	Out    io.Writer
 }
 
-// Print writes the value to standard output using the configured format.
+func (p *Printer) writer() io.Writer {
+	if p.Out != nil {
+		return p.Out
+	}
+	return os.Stdout
+}
+
+// Print writes the value to p.Out (or os.Stdout when nil) using the configured format.
 func (p *Printer) Print(v any) error {
-	return p.Fprint(os.Stdout, v)
+	return p.Fprint(p.writer(), v)
 }
 
 // Fprint writes the value to the given writer using the configured format.

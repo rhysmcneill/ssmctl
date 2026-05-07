@@ -25,6 +25,12 @@ type RunAPI interface {
 // Overridden in tests to avoid slow ticker waits.
 var pollInterval = 2 * time.Second
 
+// SetPollInterval overrides the polling interval used by RunCommand.
+// Intended for use in tests to avoid slow ticker waits.
+func SetPollInterval(d time.Duration) {
+	pollInterval = d
+}
+
 // Result contains the output and exit code from a remote command execution.
 type Result struct {
 	Stdout   string

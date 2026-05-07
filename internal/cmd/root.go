@@ -49,6 +49,8 @@ func Run() error {
 				return fmt.Errorf("initialize app: %w", err)
 			}
 
+			a.Printer.Out = cmd.OutOrStdout()
+
 			ctx := context.WithValue(cmd.Context(), app.ContextKey{}, a)
 			cmd.SetContext(ctx)
 

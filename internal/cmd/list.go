@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -38,7 +38,7 @@ EC2 Name tags. Use --filter and --platform to narrow the results client-side.`,
 				return a.Printer.Print(instances)
 			}
 
-			return printTable(instances)
+			return printTable(cmd.OutOrStdout(), instances)
 		},
 	}
 
@@ -49,8 +49,8 @@ EC2 Name tags. Use --filter and --platform to narrow the results client-side.`,
 	return cmd
 }
 
-func printTable(instances []ssmlib.InstanceInfo) error {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+func printTable(out io.Writer, instances []ssmlib.InstanceInfo) error {
+	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	fmt.Fprintln(w, "INSTANCE ID\tNAME\tPLATFORM\tAGENT VERSION\tSTATUS") //nolint:errcheck // tabwriter buffers; errors surface on Flush
 	for _, inst := range instances {

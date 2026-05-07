@@ -33,30 +33,41 @@ base64, which are not available by default on Windows targets.`,
 			srcInstance, srcPath, srcRemote := ssmlib.ParseArg(args[0])
 			dstInstance, dstPath, dstRemote := ssmlib.ParseArg(args[1])
 
+			var (
+				result *ssmlib.TransferResult
+				err    error
+			)
 			switch {
 			case srcRemote && !dstRemote:
-				target, err := ssmlib.ResolveTargetInfo(cmd.Context(), a.EC2Client, srcInstance)
-				if err != nil {
-					return fmt.Errorf("resolve source instance: %w", err)
+				target, resolveErr := ssmlib.ResolveTargetInfo(cmd.Context(), a.EC2Client, srcInstance)
+				if resolveErr != nil {
+					return fmt.Errorf("resolve source instance: %w", resolveErr)
 				}
 				if target.IsWindows() {
 					return fmt.Errorf("cp does not currently support Windows targets; remote copy relies on POSIX utilities such as cat and base64")
 				}
-				return ssmlib.Download(cmd.Context(), a.SSMClient, target.InstanceID, srcPath, dstPath, a.Config.Timeout)
+				result, err = ssmlib.Download(cmd.Context(), a.SSMClient, target.InstanceID, srcPath, dstPath, a.Config.Timeout)
 
 			case !srcRemote && dstRemote:
-				target, err := ssmlib.ResolveTargetInfo(cmd.Context(), a.EC2Client, dstInstance)
-				if err != nil {
-					return fmt.Errorf("resolve destination instance: %w", err)
+				target, resolveErr := ssmlib.ResolveTargetInfo(cmd.Context(), a.EC2Client, dstInstance)
+				if resolveErr != nil {
+					return fmt.Errorf("resolve destination instance: %w", resolveErr)
 				}
 				if target.IsWindows() {
 					return fmt.Errorf("cp does not currently support Windows targets; remote copy relies on POSIX utilities such as cat and base64")
 				}
-				return ssmlib.Upload(cmd.Context(), a.SSMClient, target.InstanceID, srcPath, dstPath, a.Config.Timeout)
+				result, err = ssmlib.Upload(cmd.Context(), a.SSMClient, target.InstanceID, srcPath, dstPath, a.Config.Timeout)
 
 			default:
 				return fmt.Errorf("exactly one of src or dst must be a remote path (e.g. my-server:/tmp/file.txt)")
 			}
+			if err != nil {
+				return fmt.Errorf("transfer: %w", err)
+			}
+			if a.Config.Output == "json" {
+				return a.Printer.Print(result)
+			}
+			return nil
 		},
 	}
 }

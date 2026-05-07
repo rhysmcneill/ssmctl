@@ -85,14 +85,33 @@ func TestUpload(t *testing.T) {
 	pollInterval = 10 * time.Millisecond
 	t.Cleanup(func() { pollInterval = 2 * time.Second })
 
+	content := []byte("hello upload")
 	localFile := filepath.Join(t.TempDir(), "upload.txt")
-	if err := os.WriteFile(localFile, []byte("hello upload"), 0o600); err != nil {
+	if err := os.WriteFile(localFile, content, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	err := Upload(context.Background(), alwaysSucceedClient(), "i-123", localFile, "/tmp/upload.txt", 30*time.Second)
+	result, err := Upload(context.Background(), alwaysSucceedClient(), "i-123", localFile, "/tmp/upload.txt", 30*time.Second)
 	if err != nil {
 		t.Fatalf("Upload() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("Upload() returned nil result")
+	}
+	if result.Direction != "upload" {
+		t.Errorf("Direction = %q, want %q", result.Direction, "upload")
+	}
+	if result.Source != localFile {
+		t.Errorf("Source = %q, want %q", result.Source, localFile)
+	}
+	if result.Destination != "i-123:/tmp/upload.txt" {
+		t.Errorf("Destination = %q, want %q", result.Destination, "i-123:/tmp/upload.txt")
+	}
+	if result.Bytes != int64(len(content)) {
+		t.Errorf("Bytes = %d, want %d", result.Bytes, len(content))
+	}
+	if result.Chunks < 1 {
+		t.Errorf("Chunks = %d, want >= 1", result.Chunks)
 	}
 }
 
@@ -120,7 +139,7 @@ func TestDownload(t *testing.T) {
 
 	localFile := filepath.Join(t.TempDir(), "download.txt")
 
-	err := Download(context.Background(), client, "i-123", "/remote/file.txt", localFile, 30*time.Second)
+	result, err := Download(context.Background(), client, "i-123", "/remote/file.txt", localFile, 30*time.Second)
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
 	}
@@ -131,6 +150,21 @@ func TestDownload(t *testing.T) {
 	}
 	if string(got) != content {
 		t.Errorf("downloaded content = %q, want %q", string(got), content)
+	}
+	if result == nil {
+		t.Fatal("Download() returned nil result")
+	}
+	if result.Direction != "download" {
+		t.Errorf("Direction = %q, want %q", result.Direction, "download")
+	}
+	if result.Source != "i-123:/remote/file.txt" {
+		t.Errorf("Source = %q, want %q", result.Source, "i-123:/remote/file.txt")
+	}
+	if result.Destination != localFile {
+		t.Errorf("Destination = %q, want %q", result.Destination, localFile)
+	}
+	if result.Bytes != int64(len(content)) {
+		t.Errorf("Bytes = %d, want %d", result.Bytes, len(content))
 	}
 }
 
@@ -154,7 +188,7 @@ func TestDownload_RemoteCommandFails(t *testing.T) {
 	}
 
 	localFile := filepath.Join(t.TempDir(), "should_not_exist.txt")
-	err := Download(context.Background(), client, "i-123", "/nonexistent/file.txt", localFile, 30*time.Second)
+	_, err := Download(context.Background(), client, "i-123", "/nonexistent/file.txt", localFile, 30*time.Second)
 	if err == nil {
 		t.Fatal("expected error for failed remote command, got nil")
 	}
@@ -212,7 +246,7 @@ func TestUploadChunkWithSpecialBase64Characters(t *testing.T) {
 	}
 
 	// Upload should succeed with special base64 characters safely embedded in heredoc.
-	err := Upload(context.Background(), client, "i-123", localFile, "/tmp/special.bin", 30*time.Second)
+	_, err := Upload(context.Background(), client, "i-123", localFile, "/tmp/special.bin", 30*time.Second)
 	if err != nil {
 		t.Fatalf("Upload() with special base64 chars error = %v", err)
 	}

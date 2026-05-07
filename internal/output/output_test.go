@@ -50,3 +50,16 @@ func TestPrinter_Fprint_UnknownFormat(t *testing.T) {
 		t.Fatal("expected error for unknown format, got nil")
 	}
 }
+
+func TestPrinter_Print_UsesOut(t *testing.T) {
+	var buf bytes.Buffer
+	p := &Printer{Format: "text", Out: &buf}
+
+	if err := p.Print("via Out"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := buf.String(); got != "via Out\n" {
+		t.Errorf("Print() = %q, want %q", got, "via Out\n")
+	}
+}

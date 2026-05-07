@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/rhysmcneill/ssmctl/internal/app"
 	"github.com/rhysmcneill/ssmctl/internal/config"
+	"github.com/rhysmcneill/ssmctl/internal/output"
 )
 
 // mockSSMCmdClient implements ssmlib.SSMClientAPI for cmd-layer tests.
@@ -40,6 +43,22 @@ func executeRunCmd(ctx context.Context, a *app.App, args []string) error {
 	root := &cobra.Command{Use: "ssmctl", SilenceErrors: true, SilenceUsage: true}
 	root.AddCommand(runCmd())
 	root.SetArgs(args)
+	if err := root.ExecuteContext(context.WithValue(ctx, app.ContextKey{}, a)); err != nil {
+		return err //nolint:wrapcheck // cobra unwraps RunE errors; wrapping here would hide *ExitCodeError
+	}
+	return nil
+}
+
+// executeRunCmdWithOutput is like executeRunCmd but captures stdout into buf,
+// mirroring the root.go pattern of setting a.Printer.Out = cmd.OutOrStdout().
+func executeRunCmdWithOutput(ctx context.Context, a *app.App, args []string, buf *bytes.Buffer) error {
+	root := &cobra.Command{Use: "ssmctl", SilenceErrors: true, SilenceUsage: true}
+	root.AddCommand(runCmd())
+	root.SetArgs(args)
+	root.SetOut(buf)
+	if a.Printer != nil {
+		a.Printer.Out = buf
+	}
 	if err := root.ExecuteContext(context.WithValue(ctx, app.ContextKey{}, a)); err != nil {
 		return err //nolint:wrapcheck // cobra unwraps RunE errors; wrapping here would hide *ExitCodeError
 	}
@@ -104,5 +123,91 @@ func TestExitCodeError_TypeAssertion(t *testing.T) {
 	}
 	if exitErr.ExitCode != 127 {
 		t.Errorf("ExitCode = %d, want 127", exitErr.ExitCode)
+	}
+}
+
+func TestRunCmd_JSONOutput(t *testing.T) {
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, _ *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-json")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:                types.CommandInvocationStatusSuccess,
+				StandardOutputContent: aws.String("hello\n"),
+				StandardErrorContent:  aws.String(""),
+				ResponseCode:          0,
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Output: "json", Timeout: 30 * time.Second},
+		SSMClient: client,
+		Printer:   &output.Printer{Format: "json"},
+	}
+
+	var buf bytes.Buffer
+	err := executeRunCmdWithOutput(context.Background(), a, []string{"run", "i-123", "--", "echo", "hello"}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got runOutput
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nraw: %s", err, buf.String())
+	}
+	if got.Stdout != "hello\n" {
+		t.Errorf("stdout = %q, want %q", got.Stdout, "hello\n")
+	}
+	if got.ExitCode != 0 {
+		t.Errorf("exitCode = %d, want 0", got.ExitCode)
+	}
+}
+
+func TestRunCmd_JSONOutput_NonZeroExitCode(t *testing.T) {
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, _ *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-json-fail")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:               types.CommandInvocationStatusFailed,
+				StandardErrorContent: aws.String("not found\n"),
+				ResponseCode:         127,
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Output: "json", Timeout: 30 * time.Second},
+		SSMClient: client,
+		Printer:   &output.Printer{Format: "json"},
+	}
+
+	var buf bytes.Buffer
+	err := executeRunCmdWithOutput(context.Background(), a, []string{"run", "i-123", "--", "badcmd"}, &buf)
+
+	var exitErr *ExitCodeError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("expected *ExitCodeError, got %v (%T)", err, err)
+	}
+	if exitErr.ExitCode != 127 {
+		t.Errorf("ExitCode = %d, want 127", exitErr.ExitCode)
+	}
+
+	var got runOutput
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nraw: %s", err, buf.String())
+	}
+	if got.Stderr != "not found\n" {
+		t.Errorf("stderr = %q, want %q", got.Stderr, "not found\n")
+	}
+	if got.ExitCode != 127 {
+		t.Errorf("exitCode = %d, want 127", got.ExitCode)
 	}
 }

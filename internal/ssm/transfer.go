@@ -15,6 +15,15 @@ const (
 	chunkSize = 3072
 )
 
+// TransferResult contains the summary of a completed file transfer operation.
+type TransferResult struct {
+	Direction   string `json:"direction"`
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	Bytes       int64  `json:"bytes"`
+	Chunks      int    `json:"chunks,omitempty"`
+}
+
 // ParseArg parses a cp argument into instance, path, and whether it is remote.
 // Remote format: <instance>:/path/to/file
 func ParseArg(s string) (instance, path string, isRemote bool) {
@@ -30,10 +39,10 @@ func ParseArg(s string) (instance, path string, isRemote bool) {
 // Safety note: base64-encoded chunks are passed to the remote shell with
 // heredoc. The 'EOF' delimiter is single-quoted, which prevents shell
 // interpretation of any characters in the chunk (i.e., +, /, =).
-func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePath string, timeout time.Duration) error {
+func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePath string, timeout time.Duration) (*TransferResult, error) {
 	data, err := os.ReadFile(localPath) // #nosec G304 -- localPath is a user-supplied CLI argument, path traversal is intentional
 	if err != nil {
-		return fmt.Errorf("failed to read local file: %w", err)
+		return nil, fmt.Errorf("failed to read local file: %w", err)
 	}
 
 	encoded := base64.StdEncoding.EncodeToString(data)
@@ -41,12 +50,13 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 	init, err := RunCommand(ctx, client, instanceID, []string{fmt.Sprintf("printf '' > %s", tempFile)}, timeout)
 
 	if err != nil {
-		return fmt.Errorf("failed to initialise transfer file: %w", err)
+		return nil, fmt.Errorf("failed to initialise transfer file: %w", err)
 	}
 	if init.ExitCode != 0 {
-		return fmt.Errorf("failed to initialise transfer file: %s", init.Stderr)
+		return nil, fmt.Errorf("failed to initialise transfer file: %s", init.Stderr)
 	}
 
+	chunks := 0
 	for i := 0; i < len(encoded); i += chunkSize {
 		end := i + chunkSize
 		if end > len(encoded) {
@@ -66,11 +76,12 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 			timeout,
 		)
 		if err != nil {
-			return fmt.Errorf("failed to send chunk: %w", err)
+			return nil, fmt.Errorf("failed to send chunk: %w", err)
 		}
 		if result.ExitCode != 0 {
-			return fmt.Errorf("chunk command failed: %s", result.Stderr)
+			return nil, fmt.Errorf("chunk command failed: %s", result.Stderr)
 		}
+		chunks++
 	}
 
 	dir := filepath.Dir(remotePath)
@@ -79,37 +90,48 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 		timeout,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to move file to destination: %w", err)
+		return nil, fmt.Errorf("failed to move file to destination: %w", err)
 	}
 	if result.ExitCode != 0 {
-		return fmt.Errorf("move command failed: %s", result.Stderr)
+		return nil, fmt.Errorf("move command failed: %s", result.Stderr)
 	}
 
-	return nil
+	return &TransferResult{
+		Direction:   "upload",
+		Source:      localPath,
+		Destination: instanceID + ":" + remotePath,
+		Bytes:       int64(len(data)),
+		Chunks:      chunks,
+	}, nil
 }
 
 // Download copies a remote file to a local path via SSM.
 // Practical limit: ~36KB due to SSM stdout truncation.
-func Download(ctx context.Context, client RunAPI, instanceID, remotePath, localPath string, timeout time.Duration) error {
+func Download(ctx context.Context, client RunAPI, instanceID, remotePath, localPath string, timeout time.Duration) (*TransferResult, error) {
 	result, err := RunCommand(ctx, client, instanceID,
 		[]string{fmt.Sprintf("cat %s | base64", remotePath)},
 		timeout,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to read remote file: %w", err)
+		return nil, fmt.Errorf("failed to read remote file: %w", err)
 	}
 	if result.ExitCode != 0 {
-		return fmt.Errorf("remote read failed: %s", result.Stderr)
+		return nil, fmt.Errorf("remote read failed: %s", result.Stderr)
 	}
 
 	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(result.Stdout))
 	if err != nil {
-		return fmt.Errorf("failed to decode file content: %w", err)
+		return nil, fmt.Errorf("failed to decode file content: %w", err)
 	}
 
 	if err := os.WriteFile(localPath, data, 0o600); err != nil {
-		return fmt.Errorf("failed to write local file: %w", err)
+		return nil, fmt.Errorf("failed to write local file: %w", err)
 	}
 
-	return nil
+	return &TransferResult{
+		Direction:   "download",
+		Source:      instanceID + ":" + remotePath,
+		Destination: localPath,
+		Bytes:       int64(len(data)),
+	}, nil
 }

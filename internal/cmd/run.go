@@ -2,13 +2,18 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rhysmcneill/ssmctl/internal/app"
 	ssmlib "github.com/rhysmcneill/ssmctl/internal/ssm"
 )
+
+type runOutput struct {
+	Stdout   string `json:"stdout"`
+	Stderr   string `json:"stderr"`
+	ExitCode int    `json:"exitCode"`
+}
 
 // ExitCodeError is returned by RunE when a remote command exits with a
 // non-zero status. main inspects this type to forward the exact exit code.
@@ -54,11 +59,25 @@ ssmctl does not currently select automatically.`,
 				return fmt.Errorf("run command: %w", err)
 			}
 
-			if result.Stdout != "" {
-				fmt.Print(result.Stdout)
-			}
-			if result.Stderr != "" {
-				fmt.Fprint(os.Stderr, result.Stderr)
+			if a.Config.Output == "json" {
+				if err := a.Printer.Print(runOutput{
+					Stdout:   result.Stdout,
+					Stderr:   result.Stderr,
+					ExitCode: result.ExitCode,
+				}); err != nil {
+					return fmt.Errorf("write output: %w", err)
+				}
+			} else {
+				if result.Stdout != "" {
+					if _, err := fmt.Fprint(cmd.OutOrStdout(), result.Stdout); err != nil {
+						return fmt.Errorf("write stdout: %w", err)
+					}
+				}
+				if result.Stderr != "" {
+					if _, err := fmt.Fprint(cmd.ErrOrStderr(), result.Stderr); err != nil {
+						return fmt.Errorf("write stderr: %w", err)
+					}
+				}
 			}
 			if result.ExitCode != 0 {
 				return &ExitCodeError{ExitCode: result.ExitCode}

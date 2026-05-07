@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	awscfg "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -55,10 +54,12 @@ func New(cfg *config.Config) (*App, error) {
 
 	// if debug flag was passed, additional information is logged.
 	if cfg.Debug {
-		awsCfg.ClientLogMode = aws.LogSigning | aws.LogRequest | aws.LogResponseWithBody
 		debugLog := log.New(os.Stderr, "[DEBUG] ", log.LstdFlags)
 		debugLog.Println("AWS SDK initialized")
-		debugLog.Printf("Resolved Region: %s\n", awsCfg.Region)
+		debugLog.Printf("Profile %s\n", cfg.Profile)
+		debugLog.Printf("Region: %s\n", awsCfg.Region)
+		debugLog.Printf("Output: %s\n", cfg.Output)
+		debugLog.Printf("Timeout: %v\n", cfg.Timeout)
 	}
 	// Sync the resolved region back onto cfg so commands that need to pass the
 	// region explicitly (e.g. the session-manager-plugin invocation) get the

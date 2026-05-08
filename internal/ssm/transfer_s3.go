@@ -64,6 +64,12 @@ func ParseS3URL(s string) (S3Location, error) {
 	return loc, nil
 }
 
+// StagingKey generates a unique S3 staging object key for the given basename
+// under the supplied prefix. It is exported for use by the benchmarks package.
+func StagingKey(prefix, basename string) (string, error) {
+	return defaultStagingKey(prefix, basename)
+}
+
 // stagingKeyFunc generates a unique staging object key for the given basename
 // underneath the supplied prefix. It is overridable in tests for deterministic
 // output.
@@ -272,4 +278,10 @@ func maybeCleanupStagingObject(ctx context.Context, s3Client S3API, bucket, key 
 // command, escaping any embedded single quotes.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// ShellQuote is the exported form of shellQuote, provided for use by the
+// benchmarks package.
+func ShellQuote(s string) string {
+	return shellQuote(s)
 }

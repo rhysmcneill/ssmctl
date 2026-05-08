@@ -9,7 +9,7 @@ LDFLAGS  = -ldflags "\
 
 BINARY   = bin/ssmctl
 
-.PHONY: build build-all test test-cover lint fmt vet install setup e2e e2e-aws ci
+.PHONY: build build-all test test-cover lint fmt vet install setup e2e e2e-aws ci bench bench-compare
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 
@@ -43,6 +43,16 @@ e2e:
 # Run full AWS integration tests (requires real AWS credentials).
 e2e-aws: build
 	go test -tags e2e ./e2e/ -v -count=1
+
+# ── Benchmarks ─────────────────────────────────────────────────────────────────
+
+bench:
+	go test -bench=. -benchmem -count=10 -run='^$$' -timeout=30m ./benchmarks/
+
+bench-compare:
+	@command -v benchstat >/dev/null 2>&1 || go install golang.org/x/perf/cmd/benchstat@latest
+	go test -bench=. -benchmem -count=10 -run='^$$' -timeout=30m ./benchmarks/ | tee /tmp/ssmctl-bench-current.txt
+	@if [ -f baseline.txt ]; then benchstat baseline.txt /tmp/ssmctl-bench-current.txt; else echo "No baseline.txt — run 'cp /tmp/ssmctl-bench-current.txt baseline.txt' to seed one."; fi
 
 # ── Code quality ───────────────────────────────────────────────────────────────
 

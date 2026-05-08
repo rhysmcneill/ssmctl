@@ -211,3 +211,57 @@ func TestRunCmd_JSONOutput_NonZeroExitCode(t *testing.T) {
 		t.Errorf("exitCode = %d, want 127", got.ExitCode)
 	}
 }
+
+func TestRunCmd_DebugFlagDoesNotBreakExecution(t *testing.T) {
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, _ *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-test")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:                types.CommandInvocationStatusSuccess,
+				ResponseCode:          0,
+				StandardOutputContent: aws.String("hello"),
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second, Debug: true},
+		SSMClient: client,
+	}
+
+	err := executeRunCmd(context.Background(), a, []string{"run", "i-123", "--", "echo", "hi"})
+	if err != nil {
+		t.Fatalf("expected no error with debug flag, got %v", err)
+	}
+}
+
+func TestRunCmd_DebugFlagWithFailingCommand(t *testing.T) {
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, _ *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-test")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusFailed,
+				ResponseCode: 1,
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second, Debug: true},
+		SSMClient: client,
+	}
+
+	err := executeRunCmd(context.Background(), a, []string{"run", "i-123", "--", "false"})
+	var exitErr *ExitCodeError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode != 1 {
+		t.Fatalf("expected exit code 1 with debug flag, got %v", err)
+	}
+}

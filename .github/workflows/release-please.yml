@@ -43,6 +43,10 @@ jobs:
           TAG="${{ needs.release-please.outputs.tag_name }}"
           test -n "$TAG"
           echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Cross-compile all platforms
+        run: make build-all VERSION="${{ steps.version.outputs.VERSION }}"
+
       - name: Generate checksums
         run: |
           cd bin

@@ -11,6 +11,7 @@ import (
 
 	awscfg "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 
 	"github.com/rhysmcneill/ssmctl/internal/config"
@@ -24,6 +25,7 @@ type App struct {
 	SSMClient  ssmlib.ClientAPI
 	ListClient ssmlib.ListAPI
 	EC2Client  ssmlib.EC2DescribeInstancesAPI
+	S3Client   ssmlib.S3API
 	Printer    *output.Printer
 }
 
@@ -76,6 +78,7 @@ func New(cfg *config.Config) (*App, error) {
 		SSMClient:  ssmClient,
 		ListClient: ssmClient,
 		EC2Client:  ec2.NewFromConfig(awsCfg),
+		S3Client:   s3.NewFromConfig(awsCfg),
 		Printer:    &output.Printer{Format: cfg.Output},
 	}, nil
 }

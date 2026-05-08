@@ -48,7 +48,7 @@ func TestHelp_CpSubcommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cp --help exited with error: %v\noutput: %s", err, out)
 	}
-	for _, want := range []string{"cp", "Linux/macOS targets only", "POSIX utilities"} {
+	for _, want := range []string{"cp", "Linux/macOS targets only", "POSIX utilities", "--via", "--keep-staging"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("cp --help output missing %q:\n%s", want, out)
 		}
@@ -154,6 +154,26 @@ func TestCp_MissingArgs(t *testing.T) {
 		t.Fatalf("expected non-zero exit for cp with one arg, got nil\noutput: %s", out)
 	}
 	_ = out
+}
+
+func TestCp_KeepStagingWithoutVia(t *testing.T) {
+	out, err := run("cp", "--keep-staging", "/tmp/a.txt", "server:/tmp/b.txt")
+	if err == nil {
+		t.Fatalf("expected non-zero exit when --keep-staging is used without --via, got nil\noutput: %s", out)
+	}
+	if !strings.Contains(out, "--keep-staging requires --via") {
+		t.Errorf("expected error mentioning --keep-staging requires --via:\n%s", out)
+	}
+}
+
+func TestCp_InvalidViaURL(t *testing.T) {
+	out, err := run("cp", "--via", "not-an-s3-url", "/tmp/a.txt", "server:/tmp/b.txt")
+	if err == nil {
+		t.Fatalf("expected non-zero exit for invalid --via URL, got nil\noutput: %s", out)
+	}
+	if !strings.Contains(out, "must start with s3://") {
+		t.Errorf("expected error mentioning s3:// scheme:\n%s", out)
+	}
 }
 
 // ---------------------------------------------------------------------------

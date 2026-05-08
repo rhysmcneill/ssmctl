@@ -22,6 +22,16 @@ type TransferResult struct {
 	Destination string `json:"destination"`
 	Bytes       int64  `json:"bytes"`
 	Chunks      int    `json:"chunks,omitempty"`
+	// Via reports the transport used for the transfer ("ssm" for the in-band
+	// SSM Run Command path or "s3" for the staged S3-backed path). It is
+	// omitted from JSON output when empty to preserve historical formatting.
+	Via string `json:"via,omitempty"`
+	// StagingURL is the s3:// URL of the staging object used during an
+	// S3-backed transfer. It is empty for in-band SSM transfers.
+	StagingURL string `json:"staging_url,omitempty"`
+	// KeptStaging indicates that the staging object was left in place after
+	// the transfer because --keep-staging was set.
+	KeptStaging bool `json:"kept_staging,omitempty"`
 }
 
 // ParseArg parses a cp argument into instance, path, and whether it is remote.

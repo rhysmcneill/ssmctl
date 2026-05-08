@@ -70,6 +70,11 @@ setup:
 		echo "pre-commit not found — install via 'pip install pre-commit' or 'brew install pre-commit', then re-run 'make setup'"; \
 	fi
 
+# ── Pre-commit cleanup ─────────────────────────────────────────────────────────────
+
+pre-commit-hooks-update:
+	pre-commit clean
+	pre-commit install-hooks
 
 # ── CI ─────────────────────────────────────────────────────────────────────────
 

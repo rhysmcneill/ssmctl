@@ -11,6 +11,7 @@ A lightweight CLI for managing AWS SSM connections, remote command execution, an
 - [Features](#features)
   - [list](#list-instances)
   - [connect](#connect-to-an-instance)
+  - [forward](#forward-a-port)
   - [run](#run-a-command)
   - [cp upload](#upload-a-file)
   - [cp download](#download-a-file)
@@ -72,6 +73,33 @@ ssmctl connect <target>
 ```
 
 Starts an interactive SSM session. Requires the [AWS Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+
+---
+
+### Forward a port
+
+```bash
+ssmctl forward <target> --local <local-port> --remote <remote-port-or-host:port>
+```
+
+Tunnels a local port to a port on the instance (or to a host reachable from the instance) through SSM Session Manager. The command blocks until interrupted with Ctrl-C, which cleanly terminates the session.
+
+```bash
+# Forward local :5432 to the instance's own localhost:5432
+ssmctl forward web-1 --local 5432 --remote 5432
+
+# Forward local :5432 to an RDS endpoint reachable from the instance
+ssmctl forward web-1 --local 5432 --remote rds.internal.example.com:5432
+
+# Use a different local port
+ssmctl forward web-1 --local 15432 --remote rds.internal.example.com:5432
+```
+
+`--remote` is interpreted automatically:
+- bare integer (e.g. `5432`) — uses `AWS-StartPortForwardingSession` (local-only)
+- `host:port` — uses `AWS-StartPortForwardingSessionToRemoteHost`
+
+Requires the [AWS Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) and `ssm:StartSession` permission on the target instance.
 
 ---
 
@@ -227,7 +255,7 @@ brew install ssmctl
 
 - AWS credentials configured (environment variables, `~/.aws/credentials`, or an IAM role)
 - The target EC2 instance must have the [SSM Agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html) installed and running
-- For `connect`, the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) must be installed locally
+- For `connect` and `forward`, the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) must be installed locally
 
 ---
 
@@ -236,6 +264,7 @@ brew install ssmctl
 | Command | Linux/macOS targets | Windows targets |
 |---------|---------------------|-----------------|
 | `connect` | Supported | Supported when the Session Manager plugin is installed locally |
+| `forward` | Supported | Supported when the Session Manager plugin is installed locally |
 | `run` | Supported via `AWS-RunShellScript` | Not currently supported; Windows targets require `AWS-RunPowerShellScript` |
 | `cp` | Supported | Not currently supported; transfers rely on POSIX utilities such as `cat` and `base64` |
 
@@ -291,6 +320,7 @@ ssmctl/
 - [x] Homebrew formula
 - [x] `ssmctl list` — instance discovery with filtering ([#50](https://github.com/rhysmcneill/ssmctl/issues/50))
 - [x] `cp --via s3://...` — lift cp size limits via S3-backed staging ([#13](https://github.com/rhysmcneill/ssmctl/issues/13))
+- [x] `ssmctl forward` — port forwarding via Session Manager ([#49](https://github.com/rhysmcneill/ssmctl/issues/49))
 - [ ] shell completion (`bash`, `zsh`, `fish`)
 - [ ] `--output json` support for `connect`
 

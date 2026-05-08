@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
@@ -43,28 +41,5 @@ func StartSession(ctx context.Context, client ClientAPI, instanceID, region, pro
 		return fmt.Errorf("failed to marshal input JSON: %w", err)
 	}
 
-	endpoint := "https://ssm." + region + ".amazonaws.com"
-
-	pluginPath, err := exec.LookPath("session-manager-plugin")
-	if err != nil {
-		return fmt.Errorf("session-manager-plugin not found in PATH: %w", err)
-	}
-
-	cmd := exec.CommandContext(ctx, pluginPath, // #nosec G204 -- pluginPath resolved via exec.LookPath, not user input
-		string(respJSON),
-		region,
-		"StartSession",
-		profile,
-		string(inputJSON),
-		endpoint,
-	)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to start session: %w", err)
-	}
-
-	return nil
+	return pluginRunner(ctx, string(respJSON), region, profile, string(inputJSON))
 }

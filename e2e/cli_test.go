@@ -187,3 +187,67 @@ func TestConnect_MissingTarget(t *testing.T) {
 	}
 	_ = out
 }
+
+// ---------------------------------------------------------------------------
+// forward subcommand
+// ---------------------------------------------------------------------------
+
+func TestHelp_ForwardSubcommand(t *testing.T) {
+	out, err := run("forward", "--help")
+	if err != nil {
+		t.Fatalf("forward --help exited with error: %v\noutput: %s", err, out)
+	}
+	for _, want := range []string{"forward", "--local", "--remote", "Session Manager plugin", "Ctrl-C"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("forward --help output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestForward_MissingTarget(t *testing.T) {
+	out, err := run("forward", "--local", "5432", "--remote", "5432")
+	if err == nil {
+		t.Fatalf("expected non-zero exit when target is missing, got nil\noutput: %s", out)
+	}
+	_ = out
+}
+
+func TestForward_MissingLocalFlag(t *testing.T) {
+	out, err := run("forward", "web-1", "--remote", "5432")
+	if err == nil {
+		t.Fatalf("expected non-zero exit when --local is missing, got nil\noutput: %s", out)
+	}
+	if !strings.Contains(out, "--local") {
+		t.Errorf("expected error mentioning --local flag:\n%s", out)
+	}
+}
+
+func TestForward_MissingRemoteFlag(t *testing.T) {
+	out, err := run("forward", "web-1", "--local", "5432")
+	if err == nil {
+		t.Fatalf("expected non-zero exit when --remote is missing, got nil\noutput: %s", out)
+	}
+	if !strings.Contains(out, "--remote") {
+		t.Errorf("expected error mentioning --remote flag:\n%s", out)
+	}
+}
+
+func TestForward_InvalidRemote(t *testing.T) {
+	out, err := run("forward", "web-1", "--local", "5432", "--remote", "not:a:valid:port")
+	if err == nil {
+		t.Fatalf("expected non-zero exit for invalid --remote, got nil\noutput: %s", out)
+	}
+	if !strings.Contains(out, "invalid port") {
+		t.Errorf("expected error mentioning invalid port:\n%s", out)
+	}
+}
+
+func TestForward_LocalPortOutOfRange(t *testing.T) {
+	out, err := run("forward", "web-1", "--local", "0", "--remote", "5432")
+	if err == nil {
+		t.Fatalf("expected non-zero exit for --local 0, got nil\noutput: %s", out)
+	}
+	if !strings.Contains(out, "65535") {
+		t.Errorf("expected error mentioning port range:\n%s", out)
+	}
+}

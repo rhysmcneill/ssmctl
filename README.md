@@ -14,6 +14,7 @@ A lightweight CLI for managing AWS SSM connections, remote command execution, an
   - [run](#run-a-command)
   - [cp upload](#upload-a-file)
   - [cp download](#download-a-file)
+  - [cp via S3 (large files)](#large-file-transfers-via-s3)
   - [version](#show-version)
 - [Targets](#targets)
 - [Global Flags](#global-flags)
@@ -107,6 +108,63 @@ ssmctl cp <target>:/var/log/app.log ./app.log
 ```
 
 > **Note:** downloads are limited to ~36 KB (SSM `GetCommandInvocation` output size).
+
+---
+
+### Large file transfers via S3
+
+The default `cp` path is bounded by SSM Run Command payload limits (~2 MB
+uploads, ~36 KB downloads). For larger files, stage the transfer through an
+S3 bucket with `--via s3://<bucket>[/<prefix>]`:
+
+```bash
+# Upload — local → S3 → instance
+ssmctl cp --via s3://my-bucket/tmp ./large-file.tar.gz web-1:/var/data/large-file.tar.gz
+
+# Download — instance → S3 → local
+ssmctl cp --via s3://my-bucket/tmp web-1:/var/log/big.log ./big.log
+
+# Keep the S3 staging object after a successful transfer (useful for debugging)
+ssmctl cp --via s3://my-bucket/tmp --keep-staging ./file.bin web-1:/tmp/file.bin
+```
+
+How it works:
+
+- **Upload:** the local file is uploaded to a unique staging key under the
+  prefix you provided, then `aws s3 cp` runs on the target via SSM to pull
+  the object onto the instance.
+- **Download:** `aws s3 cp` runs on the target via SSM to push the file to
+  S3, then `ssmctl` downloads the staged object locally.
+- The staging object is deleted after a successful transfer unless
+  `--keep-staging` is set. Failed transfers also leave the staging object
+  in place to aid debugging.
+
+Requirements for the S3-backed path:
+
+- The target instance must have the AWS CLI installed (`aws` on `PATH`).
+- The instance role must allow `s3:GetObject` (uploads) and/or `s3:PutObject`
+  (downloads) on the staging bucket and prefix.
+- The local AWS credentials used by `ssmctl` must allow `s3:PutObject`,
+  `s3:GetObject`, and `s3:DeleteObject` on the staging bucket and prefix.
+
+Example IAM policy fragment (tighten to your actual prefix):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::my-bucket/tmp/ssmctl-*"
+    }
+  ]
+}
+```
 
 ---
 
@@ -232,6 +290,7 @@ ssmctl/
 - [x] basic error handling and validation
 - [x] Homebrew formula
 - [x] `ssmctl list` — instance discovery with filtering ([#50](https://github.com/rhysmcneill/ssmctl/issues/50))
+- [x] `cp --via s3://...` — lift cp size limits via S3-backed staging ([#13](https://github.com/rhysmcneill/ssmctl/issues/13))
 - [ ] shell completion (`bash`, `zsh`, `fish`)
 - [ ] `--output json` support for `connect`
 

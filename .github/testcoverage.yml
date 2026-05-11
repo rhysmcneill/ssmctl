@@ -8,4 +8,4 @@ exclude:
     - ^internal/cmd/
 
 threshold:
-  total: 60
+  total: 75

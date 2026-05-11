@@ -1,0 +1,4 @@
+profile: coverage.out
+
+threshold:
+  total: 80

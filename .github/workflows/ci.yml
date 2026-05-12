@@ -39,7 +39,7 @@ jobs:
           retention-days: 7
 
       - name: Build
-        run: go build -o bin/ssmctl ./cmd/ssmctl
+        run: make build
 
       - name: Smoke tests (e2e, no AWS)
         run: go test ./e2e/ -v -count=1

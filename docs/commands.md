@@ -353,4 +353,5 @@ If a Name tag matches more than one running instance, `ssmctl` returns an error 
 | `forward` | Supported | Supported |
 | `run` | Supported | Not supported — requires `AWS-RunPowerShellScript` |
 | `cp` | Supported | Not supported — requires POSIX utilities on the instance |
-| `completion` | N/A | N/A |
+| `version` | Supported | Supported |
+| `completion` | Supported | Supported |

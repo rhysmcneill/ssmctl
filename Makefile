@@ -14,15 +14,17 @@ BINARY   = bin/ssmctl
 # ── Build ──────────────────────────────────────────────────────────────────────
 
 build:
+	mkdir -p bin
 	go build $(LDFLAGS) -o $(BINARY) ./cmd/ssmctl
 
 build-all:
-	GOOS=linux   GOARCH=amd64 go build $(LDFLAGS) -o bin/ssmctl-linux-amd64       ./cmd/ssmctl
-	GOOS=linux   GOARCH=arm64 go build $(LDFLAGS) -o bin/ssmctl-linux-arm64       ./cmd/ssmctl
-	GOOS=darwin  GOARCH=amd64 go build $(LDFLAGS) -o bin/ssmctl-darwin-amd64      ./cmd/ssmctl
-	GOOS=darwin  GOARCH=arm64 go build $(LDFLAGS) -o bin/ssmctl-darwin-arm64      ./cmd/ssmctl
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o bin/ssmctl-windows-amd64.exe ./cmd/ssmctl
-	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o bin/ssmctl-windows-arm64.exe ./cmd/ssmctl
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build $(LDFLAGS) -o bin/ssmctl-linux-amd64       ./cmd/ssmctl
+	CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build $(LDFLAGS) -o bin/ssmctl-linux-arm64       ./cmd/ssmctl
+	CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build $(LDFLAGS) -o bin/ssmctl-darwin-amd64      ./cmd/ssmctl
+	CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build $(LDFLAGS) -o bin/ssmctl-darwin-arm64      ./cmd/ssmctl
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o bin/ssmctl-windows-amd64.exe ./cmd/ssmctl
+	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o bin/ssmctl-windows-arm64.exe ./cmd/ssmctl
 
 install:
 	go install $(LDFLAGS) ./cmd/ssmctl

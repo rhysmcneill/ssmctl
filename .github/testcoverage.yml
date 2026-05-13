@@ -1,0 +1,11 @@
+profile: coverage.out
+
+# Exclude entry point and CLI wiring — these are Cobra command definitions
+# tested via e2e smoke tests, not unit tests.
+exclude:
+  paths:
+    - ^cmd/ssmctl/main\.go$
+    - ^internal/cmd/
+
+threshold:
+  total: 75

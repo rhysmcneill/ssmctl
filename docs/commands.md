@@ -262,6 +262,45 @@ ssmctl version --output json
 
 ---
 
+## `ssmctl completion`
+
+Print a shell completion script to stdout. Source it once (or add it to your shell config) to enable tab completion for all ssmctl subcommands and global flags.
+
+```bash
+ssmctl completion [bash|zsh|fish|powershell]
+```
+
+No AWS credentials are required to run this command.
+
+### Examples
+
+```bash
+# Bash — load immediately
+source <(ssmctl completion bash)
+
+# Bash — persist across sessions
+echo 'source <(ssmctl completion bash)' >> ~/.bashrc
+
+# Zsh — load immediately
+source <(ssmctl completion zsh)
+
+# Zsh — persist across sessions
+echo 'source <(ssmctl completion zsh)' >> ~/.zshrc
+
+# Fish — load immediately
+ssmctl completion fish | source
+
+# Fish — persist across sessions
+ssmctl completion fish > ~/.config/fish/completions/ssmctl.fish
+
+# PowerShell — load immediately
+ssmctl completion powershell | Out-String | Invoke-Expression
+```
+
+See [docs/installation.md — Shell completion](installation.md#shell-completion) for Homebrew and per-shell setup details.
+
+---
+
 ## Global flags
 
 These flags apply to every command:
@@ -296,3 +335,4 @@ If a Name tag matches more than one running instance, `ssmctl` returns an error 
 | `forward` | Supported | Supported |
 | `run` | Supported | Not supported — requires `AWS-RunPowerShellScript` |
 | `cp` | Supported | Not supported — requires POSIX utilities |
+| `completion` | Supported | Supported |

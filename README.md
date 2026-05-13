@@ -60,7 +60,20 @@ curl -L https://github.com/rhysmcneill/ssmctl/releases/latest/download/ssmctl-li
   -o /usr/local/bin/ssmctl && chmod +x /usr/local/bin/ssmctl
 ```
 
-> Binaries for Linux, macOS, and Windows on every [release](https://github.com/rhysmcneill/ssmctl/releases). See the [installation guide](docs/installation.md) for the Session Manager plugin setup.
+> Binaries for Linux, macOS, and Windows on every [release](https://github.com/rhysmcneill/ssmctl/releases). See the [installation guide](docs/installation.md) for the Session Manager plugin setup and shell completion instructions.
+
+**Shell completion** — Homebrew users get tab completion automatically. For binary installs, run once:
+
+```bash
+# Bash
+echo 'source <(ssmctl completion bash)' >> ~/.bashrc
+
+# Zsh
+echo 'source <(ssmctl completion zsh)' >> ~/.zshrc
+
+# Fish
+ssmctl completion fish > ~/.config/fish/completions/ssmctl.fish
+```
 
 ---
 
@@ -145,6 +158,7 @@ ssmctl cp --via s3://my-bucket/staging web-1:/var/log/access.log.2 ./access.log.
 | `ssmctl cp ./file <target>:/path` | Upload a file |
 | `ssmctl cp <target>:/path ./file` | Download a file |
 | `ssmctl cp --via s3://bucket <src> <dst>` | Large file transfer via S3 staging |
+| `ssmctl completion [bash\|zsh\|fish\|powershell]` | Generate shell completion scripts |
 
 A `<target>` is an instance ID (`i-0abc...`) or a Name tag (`web-1`). See the [full command reference](docs/commands.md).
 

@@ -140,6 +140,72 @@ If `ssmctl list` returns instances, you're ready to go. If it returns an error, 
 
 ---
 
+## Shell completion
+
+`ssmctl` can generate tab-completion scripts for bash, zsh, fish, and PowerShell.
+
+### Homebrew
+
+If you installed via Homebrew, **completion is set up automatically** — no extra steps required. Homebrew installs the completion script into the appropriate system directory during `brew install ssmctl`.
+
+### Binary and source installs
+
+Run the one-time setup for your shell:
+
+**Bash:**
+
+```bash
+# Load immediately
+source <(ssmctl completion bash)
+
+# Persist across sessions
+echo 'source <(ssmctl completion bash)' >> ~/.bashrc
+```
+
+**Zsh:**
+
+```bash
+# Load immediately
+source <(ssmctl completion zsh)
+
+# Persist across sessions
+echo 'source <(ssmctl completion zsh)' >> ~/.zshrc
+```
+
+If you see `command not found: compdef`, enable completions first by adding `autoload -Uz compinit && compinit` before the above line in `~/.zshrc`.
+
+**Fish:**
+
+```bash
+# Load immediately
+ssmctl completion fish | source
+
+# Persist across sessions
+ssmctl completion fish > ~/.config/fish/completions/ssmctl.fish
+```
+
+**PowerShell:**
+
+```powershell
+# Load immediately
+ssmctl completion powershell | Out-String | Invoke-Expression
+
+# Persist across sessions — add the above line to your PowerShell profile:
+# $PROFILE
+```
+
+After setup, pressing Tab after any `ssmctl` subcommand or flag will offer completions:
+
+```
+$ ssmctl <Tab>
+completion  connect  cp  forward  list  run  version
+
+$ ssmctl connect --<Tab>
+--debug  --output  --profile  --region  --timeout
+```
+
+---
+
 ## AWS credentials
 
 `ssmctl` uses the standard AWS SDK credential chain. The following all work:

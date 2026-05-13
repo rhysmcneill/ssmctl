@@ -133,6 +133,68 @@ func TestCpCmd_DownloadJSONOutput(t *testing.T) {
 	}
 }
 
+func TestCpCmd_BothLocalPathsReturnsError(t *testing.T) {
+	a := &app.App{
+		Config:  &config.Config{Output: "text", Timeout: 30 * time.Second},
+		Printer: &output.Printer{Format: "text"},
+	}
+
+	var buf bytes.Buffer
+	err := executeCpCmdWithOutput(context.Background(), a, []string{"cp", "/tmp/a.txt", "/tmp/b.txt"}, &buf)
+	if err == nil {
+		t.Fatal("expected error when both src and dst are local paths, got nil")
+	}
+}
+
+func TestCpCmd_BothRemotePathsReturnsError(t *testing.T) {
+	a := &app.App{
+		Config:  &config.Config{Output: "text", Timeout: 30 * time.Second},
+		Printer: &output.Printer{Format: "text"},
+	}
+
+	var buf bytes.Buffer
+	err := executeCpCmdWithOutput(context.Background(), a, []string{"cp", "i-123:/a.txt", "i-456:/b.txt"}, &buf)
+	if err == nil {
+		t.Fatal("expected error when both src and dst are remote paths, got nil")
+	}
+}
+
+func TestCpCmd_KeepStagingWithoutViaReturnsError(t *testing.T) {
+	localFile := filepath.Join(t.TempDir(), "upload.txt")
+	if err := os.WriteFile(localFile, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a := &app.App{
+		Config:  &config.Config{Output: "text", Timeout: 30 * time.Second},
+		Printer: &output.Printer{Format: "text"},
+	}
+
+	var buf bytes.Buffer
+	err := executeCpCmdWithOutput(context.Background(), a, []string{"cp", "--keep-staging", localFile, "i-123:/tmp/upload.txt"}, &buf)
+	if err == nil {
+		t.Fatal("expected error for --keep-staging without --via, got nil")
+	}
+}
+
+func TestCpCmd_InvalidViaURLReturnsError(t *testing.T) {
+	localFile := filepath.Join(t.TempDir(), "upload.txt")
+	if err := os.WriteFile(localFile, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a := &app.App{
+		Config:  &config.Config{Output: "text", Timeout: 30 * time.Second},
+		Printer: &output.Printer{Format: "text"},
+	}
+
+	var buf bytes.Buffer
+	err := executeCpCmdWithOutput(context.Background(), a, []string{"cp", "--via", "not-an-s3-url", localFile, "i-123:/tmp/upload.txt"}, &buf)
+	if err == nil {
+		t.Fatal("expected error for invalid --via URL, got nil")
+	}
+}
+
 func TestCpCmd_UploadTextOutputSilent(t *testing.T) {
 	ssmlib.SetPollInterval(10 * time.Millisecond)
 	t.Cleanup(func() { ssmlib.SetPollInterval(2 * time.Second) })

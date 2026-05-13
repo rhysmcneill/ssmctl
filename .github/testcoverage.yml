@@ -5,7 +5,6 @@ profile: coverage.out
 exclude:
   paths:
     - ^cmd/ssmctl/main\.go$
-    - ^internal/cmd/
 
 threshold:
-  total: 75
+  total: 80

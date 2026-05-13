@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -139,7 +141,9 @@ func TestCp_BothRemote(t *testing.T) {
 }
 
 func TestCp_BothLocal(t *testing.T) {
-	out, err := run("cp", "/tmp/a.txt", "/tmp/b.txt")
+	localA := filepath.Join(os.TempDir(), "a.txt")
+	localB := filepath.Join(os.TempDir(), "b.txt")
+	out, err := run("cp", localA, localB)
 	if err == nil {
 		t.Fatalf("expected non-zero exit for cp with two local paths, got nil\noutput: %s", out)
 	}
@@ -149,7 +153,8 @@ func TestCp_BothLocal(t *testing.T) {
 }
 
 func TestCp_MissingArgs(t *testing.T) {
-	out, err := run("cp", "/tmp/a.txt")
+	localA := filepath.Join(os.TempDir(), "a.txt")
+	out, err := run("cp", localA)
 	if err == nil {
 		t.Fatalf("expected non-zero exit for cp with one arg, got nil\noutput: %s", out)
 	}
@@ -157,7 +162,8 @@ func TestCp_MissingArgs(t *testing.T) {
 }
 
 func TestCp_KeepStagingWithoutVia(t *testing.T) {
-	out, err := run("cp", "--keep-staging", "/tmp/a.txt", "server:/tmp/b.txt")
+	localA := filepath.Join(os.TempDir(), "a.txt")
+	out, err := run("cp", "--keep-staging", localA, "server:/tmp/b.txt")
 	if err == nil {
 		t.Fatalf("expected non-zero exit when --keep-staging is used without --via, got nil\noutput: %s", out)
 	}
@@ -167,7 +173,8 @@ func TestCp_KeepStagingWithoutVia(t *testing.T) {
 }
 
 func TestCp_InvalidViaURL(t *testing.T) {
-	out, err := run("cp", "--via", "not-an-s3-url", "/tmp/a.txt", "server:/tmp/b.txt")
+	localA := filepath.Join(os.TempDir(), "a.txt")
+	out, err := run("cp", "--via", "not-an-s3-url", localA, "server:/tmp/b.txt")
 	if err == nil {
 		t.Fatalf("expected non-zero exit for invalid --via URL, got nil\noutput: %s", out)
 	}

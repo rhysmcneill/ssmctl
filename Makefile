@@ -1,3 +1,7 @@
+# NOTE: This Makefile uses POSIX shell utilities (git, date, etc.) and is
+# intended to be run on Linux or macOS. Windows developers must use WSL,
+# Git Bash, or MSYS2 to invoke make targets locally.
+
 VERSION  ?= $(shell git describe --tags --always --dirty)
 COMMIT   ?= $(shell git rev-parse --short HEAD)
 DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -51,8 +55,8 @@ bench:
 
 bench-compare:
 	@command -v benchstat >/dev/null 2>&1 || go install golang.org/x/perf/cmd/benchstat@latest
-	go test -bench=. -benchmem -count=10 -run='^$$' -timeout=30m ./benchmarks/ | tee /tmp/ssmctl-bench-current.txt
-	@if [ -f baseline.txt ]; then benchstat baseline.txt /tmp/ssmctl-bench-current.txt; else echo "No baseline.txt — run 'cp /tmp/ssmctl-bench-current.txt baseline.txt' to seed one."; fi
+	go test -bench=. -benchmem -count=10 -run='^$$' -timeout=30m ./benchmarks/ | tee bench-current.txt
+	@if [ -f baseline.txt ]; then benchstat baseline.txt bench-current.txt; else echo "No baseline.txt — run 'cp bench-current.txt baseline.txt' to seed one."; fi
 
 # ── Code quality ───────────────────────────────────────────────────────────────
 

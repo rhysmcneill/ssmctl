@@ -201,6 +201,16 @@ ssmctl cp ./nginx.conf web-1:/etc/nginx/nginx.conf
 ssmctl cp web-1:/var/log/app.log ./app.log
 ```
 
+**Windows host — drive-letter paths are supported:**
+
+```powershell
+# Upload from a Windows local path
+ssmctl cp D:\configs\nginx.conf web-1:/etc/nginx/nginx.conf
+
+# Download to a Windows local path
+ssmctl cp web-1:/var/log/app.log C:\Users\Admin\logs\app.log
+```
+
 ### Required IAM permissions
 
 - `ssm:SendCommand` with `AWS-RunShellScript`
@@ -328,11 +338,19 @@ If a Name tag matches more than one running instance, `ssmctl` returns an error 
 
 ## Platform support
 
+### Host OS (where ssmctl runs)
+
+`ssmctl` runs natively on **Linux, macOS, and Windows** for all commands. Windows drive-letter paths (e.g. `C:\folder\file.txt`) are handled correctly by `cp`.
+
+`connect` and `forward` require the [Session Manager plugin](installation.md#session-manager-plugin) to be installed locally. AWS provides a Windows installer for this — see the installation guide.
+
+### Target OS (the EC2 instance being managed)
+
 | Command | Linux/macOS targets | Windows targets |
 |---------|---------------------|-----------------|
 | `list` | Supported | Supported |
 | `connect` | Supported | Supported |
 | `forward` | Supported | Supported |
 | `run` | Supported | Not supported — requires `AWS-RunPowerShellScript` |
-| `cp` | Supported | Not supported — requires POSIX utilities |
-| `completion` | Supported | Supported |
+| `cp` | Supported | Not supported — requires POSIX utilities on the instance |
+| `completion` | N/A | N/A |

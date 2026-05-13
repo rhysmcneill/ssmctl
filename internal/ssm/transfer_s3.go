@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -141,7 +142,7 @@ func UploadViaS3(
 
 	stagedURL := "s3://" + staging.Bucket + "/" + key
 
-	dir := filepath.Dir(remotePath)
+	dir := path.Dir(remotePath)
 	pullCmd := fmt.Sprintf(
 		"mkdir -p %s && aws s3 cp %s %s",
 		shellQuote(dir),
@@ -189,7 +190,7 @@ func DownloadViaS3(
 	keepStaging bool,
 	timeout time.Duration,
 ) (*TransferResult, error) {
-	key, err := stagingKeyFunc(staging.Prefix, filepath.Base(remotePath))
+	key, err := stagingKeyFunc(staging.Prefix, path.Base(remotePath))
 	if err != nil {
 		return nil, err
 	}

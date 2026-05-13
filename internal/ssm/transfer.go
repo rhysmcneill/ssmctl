@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 )
@@ -37,6 +37,12 @@ type TransferResult struct {
 // ParseArg parses a cp argument into instance, path, and whether it is remote.
 // Remote format: <instance>:/path/to/file
 func ParseArg(s string) (instance, path string, isRemote bool) {
+	// Windows drive-letter paths (e.g. C:\folder\file or C:/folder/file) must
+	// not be treated as remote even though they contain a colon at index 1.
+	if len(s) >= 3 && s[1] == ':' && (s[2] == '\\' || s[2] == '/') &&
+		(s[0] >= 'A' && s[0] <= 'Z' || s[0] >= 'a' && s[0] <= 'z') {
+		return "", s, false
+	}
 	if idx := strings.Index(s, ":"); idx > 0 {
 		return s[:idx], s[idx+1:], true
 	}
@@ -94,7 +100,7 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 		chunks++
 	}
 
-	dir := filepath.Dir(remotePath)
+	dir := path.Dir(remotePath)
 	result, err := RunCommand(ctx, client, instanceID,
 		[]string{fmt.Sprintf("mkdir -p %s && mv %s %s", dir, tempFile, remotePath)},
 		timeout,

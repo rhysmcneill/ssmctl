@@ -45,6 +45,24 @@ func TestParseArg(t *testing.T) {
 			wantPath:   "/absolute/path.txt",
 			wantRemote: false,
 		},
+		{
+			input:      `C:\Users\Admin\file.txt`,
+			wantInst:   "",
+			wantPath:   `C:\Users\Admin\file.txt`,
+			wantRemote: false,
+		},
+		{
+			input:      "c:/Users/Admin/file.txt",
+			wantInst:   "",
+			wantPath:   "c:/Users/Admin/file.txt",
+			wantRemote: false,
+		},
+		{
+			input:      `D:\`,
+			wantInst:   "",
+			wantPath:   `D:\`,
+			wantRemote: false,
+		},
 	}
 
 	for _, tt := range tests {

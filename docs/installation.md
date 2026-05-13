@@ -61,6 +61,10 @@ chmod +x /usr/local/bin/ssmctl
 
 Download `ssmctl-windows-amd64.exe` from the [releases page](https://github.com/rhysmcneill/ssmctl/releases), rename it to `ssmctl.exe`, and add it to a directory on your `PATH`.
 
+**Windows (arm64):**
+
+Download `ssmctl-windows-arm64.exe` from the [releases page](https://github.com/rhysmcneill/ssmctl/releases), rename it to `ssmctl.exe`, and add it to a directory on your `PATH`.
+
 #### Verify the checksum
 
 Each release includes a `checksums.txt` file:
@@ -86,6 +90,12 @@ Or install directly into `$GOPATH/bin`:
 ```bash
 make install
 ```
+
+> **Windows:** The `Makefile` requires POSIX shell utilities. Use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install), [Git Bash](https://git-scm.com/downloads), or [MSYS2](https://www.msys2.org/) to run `make` targets. Alternatively, build directly with Go:
+>
+> ```powershell
+> go build -o bin\ssmctl.exe .\cmd\ssmctl
+> ```
 
 ---
 
@@ -117,6 +127,20 @@ sudo dpkg -i session-manager-plugin.deb
 ```
 
 For RPM-based distributions and full platform coverage, see the [AWS documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+
+**Windows:**
+
+Download and run the installer from the [AWS documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html#install-plugin-windows). The installer adds `session-manager-plugin.exe` to your `PATH` automatically.
+
+Alternatively, using the AWS CLI:
+
+```powershell
+# Download and run the MSI installer
+Invoke-WebRequest `
+  "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/windows/SessionManagerPluginSetup.exe" `
+  -OutFile SessionManagerPluginSetup.exe
+Start-Process SessionManagerPluginSetup.exe -Wait
+```
 
 **Verify the plugin is installed:**
 
@@ -213,8 +237,8 @@ $ ssmctl connect --<Tab>
 | Method | How |
 |--------|-----|
 | Environment variables | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` |
-| Shared credentials file | `~/.aws/credentials` |
-| AWS config file | `~/.aws/config` |
+| Shared credentials file | `~/.aws/credentials` (Linux/macOS) · `%USERPROFILE%\.aws\credentials` (Windows) |
+| AWS config file | `~/.aws/config` (Linux/macOS) · `%USERPROFILE%\.aws\config` (Windows) |
 | IAM instance role | Automatically used on EC2 |
 | AWS SSO | `aws sso login --profile <profile>`, then `ssmctl --profile <profile>` |
 | ECS task role / EKS Pod Identity | Automatically used in those environments |

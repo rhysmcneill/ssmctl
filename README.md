@@ -177,7 +177,9 @@ A `<target>` is an instance ID (`i-0abc...`) or a Name tag (`web-1`). See the [f
 
 ## Contributors
 
-Thanks to everyone who has contributed to ssmctl!
+Thank you to everyone who has contributed to ssmctl!
+
+The team really value your submissions — you are helping shape the future of ssmctl.
 
 [![Contributors](https://contrib.rocks/image?repo=rhysmcneill/ssmctl&max=100)](https://github.com/rhysmcneill/ssmctl/graphs/contributors)
 

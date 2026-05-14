@@ -5,9 +5,9 @@
 <p>Shell access, file transfers and port forwarding over AWS SSM —<br>
 no bastion, no open ports, no SSH keys.</p>
 
-<img src=".github/assets/banner.png" alt="ssmctl banner" width="100%" style="max-height:180px;object-fit:cover;object-position:center">
+<img src=".github/assets/banner.png" alt="ssmctl banner" width="100%" height="160">
 
-<br>
+<br><br>
 
 [![CI](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml/badge.svg)](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://golang.org)
@@ -51,7 +51,7 @@ ssmctl connect web-1
 ssmctl forward web-1 --local 5432 --remote rds.internal:5432
 ```
 
-Same AWS APIs. Same security model. Dramatically better interface.
+Same AWS APIs, same security model but dramatically better user experience.
 
 ---
 
@@ -96,7 +96,7 @@ ssmctl list --filter api
 ssmctl connect api-server-1
 ```
 
-No security group changes. No SSH key rotation. No bastion to maintain.
+No security group changes, no SSH key creation and rotation, and finally no bastion to maintain.
 
 ### Connect your local tools to a private RDS database
 
@@ -120,7 +120,7 @@ ssmctl run web-1 -- tail -n 100 /var/log/app.log
 ssmctl run web-1 -- df -h /
 ```
 
-Stdout and stderr stream back to your terminal. Exit codes are propagated.
+Stdout and stderr stream back to your terminal - Exit codes are propagated.
 
 ### Pull a log file off an instance with one command
 
@@ -128,7 +128,7 @@ Stdout and stderr stream back to your terminal. Exit codes are propagated.
 ssmctl cp web-1:/var/log/app.log ./app.log
 ```
 
-No SCP. No bastion jump host. For files over ~36 KB, use the S3-backed path:
+No SCP or bastion jump host needed. For files over ~36 KB, use the S3-backed path:
 
 ```bash
 ssmctl cp --via s3://my-bucket/staging web-1:/var/log/access.log.2 ./access.log.2

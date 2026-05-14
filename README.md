@@ -5,7 +5,7 @@
 <p>Shell access, file transfers and port forwarding over AWS SSM —<br>
 no bastion, no open ports, no SSH keys.</p>
 
-<img src=".github/assets/banner.png" alt="ssmctl banner" width="100%" height="160">
+<img src=".github/assets/banner.png" alt="ssmctl banner" width="100%">
 
 <br><br>
 

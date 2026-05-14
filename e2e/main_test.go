@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -44,7 +45,11 @@ func buildBinary() (string, func(), error) {
 
 	cleanup := func() { _ = os.RemoveAll(dir) }
 
-	bin := filepath.Join(dir, "ssmctl")
+	binaryName := "ssmctl"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+	bin := filepath.Join(dir, binaryName)
 
 	// Resolve the module root relative to this file so the test works from any
 	// working directory.

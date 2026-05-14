@@ -82,7 +82,7 @@ func parsePort(s string) (int, error) {
 // plugin subprocess is handled automatically through the shared process group.
 func StartPortForwardingSession(ctx context.Context, client ClientAPI, instanceID, region, profile string, fwd PortForwardingTarget) error {
 	if region == "" {
-		return fmt.Errorf("could not determine AWS region: set --region, AWS_REGION, AWS_DEFAULT_REGION, or configure a default region in ~/.aws/config")
+		return fmt.Errorf("could not determine AWS region: set --region, AWS_REGION, AWS_DEFAULT_REGION, or configure a default region in %s", awsConfigPath())
 	}
 
 	var docName string

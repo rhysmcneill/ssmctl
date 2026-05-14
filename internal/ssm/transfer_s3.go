@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -62,6 +63,12 @@ func ParseS3URL(s string) (S3Location, error) {
 		loc.Prefix = strings.TrimRight(parts[1], "/")
 	}
 	return loc, nil
+}
+
+// StagingKey generates a unique S3 staging object key for the given basename
+// under the supplied prefix. It is exported for use by the benchmarks package.
+func StagingKey(prefix, basename string) (string, error) {
+	return defaultStagingKey(prefix, basename)
 }
 
 // stagingKeyFunc generates a unique staging object key for the given basename
@@ -135,7 +142,7 @@ func UploadViaS3(
 
 	stagedURL := "s3://" + staging.Bucket + "/" + key
 
-	dir := filepath.Dir(remotePath)
+	dir := path.Dir(remotePath)
 	pullCmd := fmt.Sprintf(
 		"mkdir -p %s && aws s3 cp %s %s",
 		shellQuote(dir),
@@ -183,7 +190,7 @@ func DownloadViaS3(
 	keepStaging bool,
 	timeout time.Duration,
 ) (*TransferResult, error) {
-	key, err := stagingKeyFunc(staging.Prefix, filepath.Base(remotePath))
+	key, err := stagingKeyFunc(staging.Prefix, path.Base(remotePath))
 	if err != nil {
 		return nil, err
 	}
@@ -272,4 +279,10 @@ func maybeCleanupStagingObject(ctx context.Context, s3Client S3API, bucket, key 
 // command, escaping any embedded single quotes.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// ShellQuote is the exported form of shellQuote, provided for use by the
+// benchmarks package.
+func ShellQuote(s string) string {
+	return shellQuote(s)
 }

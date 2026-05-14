@@ -72,6 +72,8 @@ installing it.
 | `make vet` | Run `go vet` |
 | `make e2e` | Run CLI smoke tests (no AWS required) |
 | `make e2e-aws` | Run full integration tests (real AWS required) |
+| `make bench` | Run all benchmarks (10 iterations each) |
+| `make bench-compare` | Run benchmarks and compare against `baseline.txt` |
 | `make setup` | Install development tools |
 | `make ci` | Run everything CI runs (vet + test + build + e2e) |
 
@@ -111,6 +113,27 @@ E2E_INSTANCE_ID=i-0123456789abcdef0 make e2e-aws
 
 Region, profile, and all other AWS settings are read from the standard environment (`AWS_DEFAULT_REGION`, `AWS_PROFILE`, `~/.aws/config`). Only `E2E_INSTANCE_ID` is test-specific.
 
+### Benchmarks
+
+Performance-sensitive helpers (parsing, staging key generation, transfer chunking) are benchmarked in the top-level `benchmarks/` package. Run them locally with:
+
+```bash
+make bench
+```
+
+To compare against a saved baseline and spot regressions:
+
+```bash
+# Seed a baseline on first run:
+make bench-compare          # prints "No baseline.txt" and creates /tmp/ssmctl-bench-current.txt
+cp /tmp/ssmctl-bench-current.txt baseline.txt
+
+# Subsequent runs compare automatically:
+make bench-compare
+```
+
+The nightly CI workflow (`.github/workflows/benchmark.yml`) runs the same suite on a schedule, compares against the cached baseline using `benchstat`, and automatically opens (or updates) a GitHub issue if any benchmark regresses by ≥ 10% with statistical significance (p < 0.05). The baseline is always updated after each nightly run so it tracks the current state of `main`.
+
 ### Coverage
 
 Aim to keep unit test coverage above 80 % for packages in `internal/`. Check coverage with:
@@ -121,7 +144,7 @@ make test-cover
 
 ### Debug Mode Testing
 
-When making changes to AWS SDK interactions, test with the `--debug` flag: 
+When making changes to AWS SDK interactions, test with the `--debug` flag:
 
 ```bash
 ssmctl --debug run i-xxx -- whoami

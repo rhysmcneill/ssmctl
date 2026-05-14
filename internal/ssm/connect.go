@@ -20,7 +20,7 @@ type ClientAPI interface {
 // StartSession starts an interactive SSM session with a target instance
 func StartSession(ctx context.Context, client ClientAPI, instanceID, region, profile string) error {
 	if region == "" {
-		return fmt.Errorf("could not determine AWS region: set --region, AWS_REGION, AWS_DEFAULT_REGION, or configure a default region in ~/.aws/config")
+		return fmt.Errorf("could not determine AWS region: set --region, AWS_REGION, AWS_DEFAULT_REGION, or configure a default region in %s", awsConfigPath())
 	}
 
 	resp, err := client.StartSession(ctx, &ssm.StartSessionInput{

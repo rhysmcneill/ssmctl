@@ -1,3 +1,7 @@
+# NOTE: This Makefile uses POSIX shell utilities (git, date, etc.) and is
+# intended to be run on Linux or macOS. Windows developers must use WSL,
+# Git Bash, or MSYS2 to invoke make targets locally.
+
 VERSION  ?= $(shell git describe --tags --always --dirty)
 COMMIT   ?= $(shell git rev-parse --short HEAD)
 DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -9,7 +13,7 @@ LDFLAGS  = -ldflags "\
 
 BINARY   = bin/ssmctl
 
-.PHONY: build build-all test test-cover lint fmt vet install setup e2e e2e-aws ci
+.PHONY: build build-all test test-cover lint fmt vet install setup e2e e2e-aws ci bench bench-compare
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 
@@ -43,6 +47,16 @@ e2e:
 # Run full AWS integration tests (requires real AWS credentials).
 e2e-aws: build
 	go test -tags e2e ./e2e/ -v -count=1
+
+# ── Benchmarks ─────────────────────────────────────────────────────────────────
+
+bench:
+	go test -bench=. -benchmem -count=10 -run='^$$' -timeout=30m ./benchmarks/
+
+bench-compare:
+	@command -v benchstat >/dev/null 2>&1 || go install golang.org/x/perf/cmd/benchstat@latest
+	go test -bench=. -benchmem -count=10 -run='^$$' -timeout=30m ./benchmarks/ | tee bench-current.txt
+	@if [ -f baseline.txt ]; then benchstat baseline.txt bench-current.txt; else echo "No baseline.txt — run 'cp bench-current.txt baseline.txt' to seed one."; fi
 
 # ── Code quality ───────────────────────────────────────────────────────────────
 

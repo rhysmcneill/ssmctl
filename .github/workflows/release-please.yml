@@ -3,6 +3,11 @@ name: Release Please
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to build and publish (e.g. v2.0.0)'
+        required: true
 
 permissions:
   contents: write
@@ -26,7 +31,11 @@ jobs:
   build-and-release:
     name: Build and Release
     needs: release-please
-    if: github.repository == 'rhysmcneill/ssmctl' && needs.release-please.outputs.release_created == 'true' && needs.release-please.outputs.tag_name != ''
+    if: |
+      github.repository == 'rhysmcneill/ssmctl' && (
+        github.event_name == 'workflow_dispatch' ||
+        (needs.release-please.outputs.release_created == 'true' && needs.release-please.outputs.tag_name != '')
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -40,9 +49,14 @@ jobs:
       - name: Derive version from release tag
         id: version
         run: |
-          TAG="${{ needs.release-please.outputs.tag_name }}"
+          TAG="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name || needs.release-please.outputs.tag_name }}"
           test -n "$TAG"
+          echo "TAG=${TAG}" >> $GITHUB_OUTPUT
           echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Build all platform binaries
+        run: make build-all VERSION=${{ steps.version.outputs.VERSION }}
+
       - name: Generate checksums
         run: |
           cd bin
@@ -70,7 +84,7 @@ jobs:
       - name: Upload release artifacts
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v2.6.1
         with:
-          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          tag_name: ${{ steps.version.outputs.TAG }}
           fail_on_unmatched_files: true
           append_body: true
           body: |

@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	awsssm "github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/spf13/cobra"
@@ -236,6 +239,67 @@ func TestRunCmd_DebugFlagDoesNotBreakExecution(t *testing.T) {
 	err := executeRunCmd(context.Background(), a, []string{"run", "i-123", "--", "echo", "hi"})
 	if err != nil {
 		t.Fatalf("expected no error with debug flag, got %v", err)
+	}
+}
+
+func TestRunCmd_WindowsTargetReturnsError(t *testing.T) {
+	ec2Client := &mockEC2CmdClient{
+		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
+			return &awsec2.DescribeInstancesOutput{
+				Reservations: []ec2types.Reservation{
+					{
+						Instances: []ec2types.Instance{
+							{
+								InstanceId: aws.String("i-wintest"),
+								Platform:   ec2types.PlatformValuesWindows,
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		EC2Client: ec2Client,
+	}
+
+	err := executeRunCmd(context.Background(), a, []string{"run", "i-wintest", "--", "dir"})
+	if err == nil {
+		t.Fatal("expected error for Windows target, got nil")
+	}
+	if !strings.Contains(err.Error(), "Windows") {
+		t.Errorf("error should mention Windows, got: %v", err)
+	}
+}
+
+func TestRunCmd_TextOutputStderr(t *testing.T) {
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, _ *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-stderr")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:               types.CommandInvocationStatusSuccess,
+				StandardErrorContent: aws.String("warning: something\n"),
+				ResponseCode:         0,
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Output: "text", Timeout: 30 * time.Second},
+		SSMClient: client,
+		Printer:   &output.Printer{Format: "text"},
+	}
+
+	var buf bytes.Buffer
+	err := executeRunCmdWithOutput(context.Background(), a, []string{"run", "i-123", "--", "mycommand"}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

@@ -45,6 +45,11 @@ bin/
 # local caches
 .cache/
 
+# Benchmark artifacts (CI caches baseline.txt; do not commit it)
+baseline.txt
+current.txt
+comparison.txt
+
 # codespell python venv
 .venv/
 

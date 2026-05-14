@@ -15,6 +15,7 @@ repos:
         args: [--fix=lf]
       - id: check-added-large-files
         args: [--maxkb=500]
+        exclude: '^\.github/assets/'
       - id: check-merge-conflict
       - id: no-commit-to-branch
         args: [--branch, main]

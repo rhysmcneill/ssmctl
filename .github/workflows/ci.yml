@@ -27,7 +27,13 @@ jobs:
       - name: Unit tests
         run: go test -race -coverprofile=coverage.out ./cmd/... ./internal/...
 
+      - name: Check test coverage
+        uses: vladopajic/go-test-coverage@a93b868a4cbcbf18dc3781650fad241f0020e609 # v2.18.8
+        with:
+          config: .github/testcoverage.yml
+
       - name: Upload coverage
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage

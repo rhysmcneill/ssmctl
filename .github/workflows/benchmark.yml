@@ -1,0 +1,174 @@
+name: Nightly Benchmarks
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  benchmark:
+    name: Run & Compare Benchmarks
+    runs-on: ubuntu-latest
+    if: github.repository == 'rhysmcneill/ssmctl'
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Restore baseline
+        id: cache-restore
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: baseline.txt
+          key: benchmark-baseline-${{ github.run_id }}
+          restore-keys: |
+            benchmark-baseline-
+
+      - name: Run benchmarks
+        run: |
+          go test -bench=. -benchmem -count=10 -run='^$' -timeout=30m ./benchmarks/ | tee current.txt
+
+      - name: Compare against baseline
+        id: compare
+        run: |
+          if [ -f baseline.txt ]; then
+            benchstat baseline.txt current.txt | tee comparison.txt
+            # Detect any benchmark that regressed ≥10% with p < 0.05.
+            # benchstat marks statistically significant changes with a trailing '~' absent,
+            # and the delta is printed like "+12.34%" or "-5.67%".
+            REGRESSION=$(awk '
+              /^\+[0-9]+\.[0-9]+%/ {
+                # Extract the numeric percentage from the leading +XX.XX%
+                match($0, /\+([0-9]+\.[0-9]+)%/, m)
+                pct = m[1]+0
+                # Only flag if ≥10 and the line does NOT end with ~ (significant)
+                if (pct >= 10 && $0 !~ /~[[:space:]]*$/) print $0
+              }
+            ' comparison.txt)
+            if [ -n "$REGRESSION" ]; then
+              echo "regression=true" >> "$GITHUB_OUTPUT"
+              echo "regression_lines<<EOF" >> "$GITHUB_OUTPUT"
+              echo "$REGRESSION" >> "$GITHUB_OUTPUT"
+              echo "EOF" >> "$GITHUB_OUTPUT"
+            else
+              echo "regression=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "No baseline found — seeding from current run."
+            echo "regression=false" >> "$GITHUB_OUTPUT"
+            cp current.txt comparison.txt
+          fi
+
+      - name: Update baseline and re-cache
+        run: cp current.txt baseline.txt
+
+      - name: Save baseline to cache
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: baseline.txt
+          key: benchmark-baseline-${{ github.run_id }}
+
+      - name: Open or update regression issue
+        if: steps.compare.outputs.regression == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const today = new Date().toISOString().slice(0, 10);
+            const title = `Benchmark regression detected (${today})`;
+            const regressionLines = `${{ steps.compare.outputs.regression_lines }}`;
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+
+            // Fetch recent merged PRs in the last 24h for candidate causes
+            const since = new Date(Date.now() - 24*60*60*1000).toISOString();
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 10,
+            });
+            const recentPRs = pulls
+              .filter(pr => pr.merged_at && pr.merged_at > since)
+              .map(pr => `- #${pr.number} ${pr.title} by @${pr.user.login}`)
+              .join('\n') || '_No PRs merged in the last 24h._';
+
+            const body = [
+              `## Benchmark regression detected on \`${today}\``,
+              '',
+              '### Regressed benchmarks',
+              '```',
+              regressionLines,
+              '```',
+              '',
+              '<details>',
+              '<summary>Full benchstat comparison</summary>',
+              '',
+              '```',
+              require('fs').readFileSync('comparison.txt', 'utf8'),
+              '```',
+              '</details>',
+              '',
+              '### Recently merged PRs (candidate causes)',
+              recentPRs,
+              '',
+              `[View workflow run](${runUrl})`,
+            ].join('\n');
+
+            // Look for an existing open issue labelled `performance`
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'performance',
+              per_page: 10,
+            });
+            const existing = issues.find(i => i.title.startsWith('Benchmark regression detected'));
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `## Update: regression still present on ${today}\n\n${body}`,
+              });
+              console.log(`Updated existing issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['performance'],
+                assignees: ['rhysmcneill'],
+              });
+              console.log(`Created issue #${created.data.number}`);
+            }
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-results-${{ github.run_id }}
+          path: |
+            current.txt
+            baseline.txt
+            comparison.txt
+          retention-days: 90
+
+      - name: Fail on regression
+        if: steps.compare.outputs.regression == 'true'
+        run: |
+          echo "::error::Benchmark regression detected — see comparison.txt and the opened/updated GitHub issue."
+          exit 1

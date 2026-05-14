@@ -1,13 +1,13 @@
 <div align="center">
 
+<img src=".github/assets/banner.png" alt="ssmctl banner" width="100%">
+  
 <h1><strong>ssmctl</strong></h1>
 
 <p>Shell access, file transfers and port forwarding over AWS SSM —<br>
 no bastion, no open ports, no SSH keys.</p>
 
-<img src=".github/assets/banner.png" alt="ssmctl banner" width="100%">
-
-<br><br>
+<br>
 
 [![CI](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml/badge.svg)](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://golang.org)

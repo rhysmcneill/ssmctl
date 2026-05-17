@@ -77,9 +77,11 @@ func parsePort(s string) (int, error) {
 // the SSM API to start a session then hands control to the local
 // session-manager-plugin process, which manages the actual WebSocket tunnel.
 //
-// The function blocks until the plugin exits (i.e. until the user presses
-// Ctrl-C or the session is otherwise terminated). Signal propagation to the
-// plugin subprocess is handled automatically through the shared process group.
+// The function blocks until the plugin exits. Terminal control signals
+// (Ctrl-C, Ctrl-\, Ctrl-Z on POSIX) are intentionally NOT propagated to
+// ssmctl while the plugin is running — see runSessionManagerPlugin for the
+// rationale and issue #85 for the original bug. The plugin itself catches
+// SIGINT to terminate the tunnel cleanly.
 func StartPortForwardingSession(ctx context.Context, client ClientAPI, instanceID, region, profile string, fwd PortForwardingTarget) error {
 	if region == "" {
 		return fmt.Errorf("could not determine AWS region: set --region, AWS_REGION, AWS_DEFAULT_REGION, or configure a default region in %s", awsConfigPath())
@@ -124,6 +126,15 @@ func StartPortForwardingSession(ctx context.Context, client ClientAPI, instanceI
 // it with the standard argument signature used by both connect and forward.
 // It is kept as a named function (rather than an anonymous closure) so it can
 // be assigned to the pluginRunner var without a cyclic reference.
+//
+// While the plugin is running we ignore terminal control signals (SIGINT,
+// SIGQUIT, SIGTSTP on POSIX; SIGINT, SIGBREAK on Windows) so they are
+// delivered only to the plugin subprocess. The plugin puts the local TTY
+// into raw mode for interactive shells, which causes Ctrl-C to travel to
+// the remote PTY as byte 0x03 and generate SIGINT for the remote process.
+// If ssmctl ALSO received the signal, it would exit, the TTY would be
+// reclaimed by the shell, and the plugin's stdin read would fail with EIO
+// — see issue #85.
 func runSessionManagerPlugin(ctx context.Context, respJSON, region, profile, inputJSON string) error {
 	endpoint := "https://ssm." + region + ".amazonaws.com"
 
@@ -143,6 +154,9 @@ func runSessionManagerPlugin(ctx context.Context, respJSON, region, profile, inp
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	restore := ignoreSessionSignalsFn()
+	defer restore()
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("session-manager-plugin exited with error: %w", err)

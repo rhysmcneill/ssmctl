@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/rhysmcneill/ssmctl/compare/v2.0.0...v2.0.1) (2026-05-17)
+
+
+### Bug Fixes
+
+* **session:** ignore terminal control signals during session-manager-plugin subprocess ([#88](https://github.com/rhysmcneill/ssmctl/issues/88)) ([2d903b8](https://github.com/rhysmcneill/ssmctl/commit/2d903b8a62d41c565d3bf020fdd17063a130101e))
+
 ## [2.0.0](https://github.com/rhysmcneill/ssmctl/compare/v1.0.1...v2.0.0) (2026-05-13)
 
 

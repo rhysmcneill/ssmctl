@@ -50,6 +50,10 @@ and available on your PATH.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a := cmd.Context().Value(app.ContextKey{}).(*app.App)
 
+			if !cmd.Flags().Changed("local") {
+				return fmt.Errorf("--local is required")
+			}
+
 			if opts.remoteFlag == "" {
 				return fmt.Errorf("--remote is required")
 			}
@@ -103,8 +107,6 @@ and available on your PATH.`,
 
 	cmd.Flags().IntVar(&opts.localPort, "local", 0, "Local port to listen on")
 	cmd.Flags().StringVar(&opts.remoteFlag, "remote", "", "Remote port (e.g. 5432) or host:port (e.g. rds.internal:5432)")
-	_ = cmd.MarkFlagRequired("local")
-	_ = cmd.MarkFlagRequired("remote")
 
 	return cmd
 }

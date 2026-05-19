@@ -34,7 +34,8 @@ func runCmd() *cobra.Command {
 The run command uses the AWS-RunShellScript document and is intended for
 Linux/macOS targets. Windows targets require AWS-RunPowerShellScript, which
 ssmctl does not currently select automatically.`,
-		Args: cobra.MinimumNArgs(1),
+		Args:               cobra.MinimumNArgs(1),
+		FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a := cmd.Context().Value(app.ContextKey{}).(*app.App)
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.1](https://github.com/rhysmcneill/ssmctl/compare/v2.0.0...v2.0.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* **cli:** silence cobra duplicate error/usage output ([#84](https://github.com/rhysmcneill/ssmctl/issues/84)) ([cef9ab2](https://github.com/rhysmcneill/ssmctl/commit/cef9ab2753667b3c63f62b8a8b29fdabc7a51081))
+* **session:** ignore terminal control signals during session-manager-plugin subprocess ([#88](https://github.com/rhysmcneill/ssmctl/issues/88)) ([2d903b8](https://github.com/rhysmcneill/ssmctl/commit/2d903b8a62d41c565d3bf020fdd17063a130101e))
+
 ## [2.0.0](https://github.com/rhysmcneill/ssmctl/compare/v1.0.1...v2.0.0) (2026-05-13)
 
 

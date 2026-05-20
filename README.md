@@ -2,7 +2,7 @@
 
 <img src=".github/assets/banner.png" alt="ssmctl banner" width="100%">
   
-<h1><strong>ssmctl</strong></h1>
+<h1><strong>Welcome to ssmctl</strong></h1>
 
 <p>Shell access, file transfers and port forwarding over AWS SSM —<br>
 no bastion, no open ports, no SSH keys.</p>

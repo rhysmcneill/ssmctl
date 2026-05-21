@@ -1,7 +1,7 @@
 <div align="center">
 
 <img src=".github/assets/banner.png" alt="ssmctl banner" width="100%">
-  
+
 <h1><strong>Welcome to ssmctl</strong></h1>
 
 <p>Shell access, file transfers and port forwarding over AWS SSM —<br>
@@ -168,6 +168,55 @@ ssmctl cp --via s3://my-bucket/staging web-1:/var/log/access.log.2 ./access.log.
 | `ssmctl completion [bash\|zsh\|fish\|powershell]` | Generate shell completion scripts |
 
 A `<target>` is an instance ID (`i-0abc...`) or a Name tag (`web-1`). See the [full command reference](docs/commands.md).
+
+---
+
+## Authentication
+
+`ssmctl` delegates all authentication to the [AWS SDK for Go v2](https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/). Credentials and region are resolved in the following order of precedence — the first match wins.
+
+### Credentials
+
+| Priority | Source | Details |
+|----------|--------|---------|
+| 1 | `--profile` flag | Loads the named profile from `~/.aws/config` and `~/.aws/credentials` |
+| 2 | `AWS_PROFILE` env var | Same as `--profile` but set in the environment |
+| 3 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Static key pair, optionally with `AWS_SESSION_TOKEN` for temporary credentials |
+| 4 | `~/.aws/credentials` + `~/.aws/config` | Default profile, or `[profile name]` blocks including SSO / IAM Identity Center profiles |
+| 5 | Container credentials | ECS task role via `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` |
+| 6 | EC2 instance metadata (IMDS) | IAM role attached to the instance — works automatically when running on EC2 |
+
+### Region
+
+| Priority | Source |
+|----------|--------|
+| 1 | `--region` flag (or `-r`) |
+| 2 | `AWS_REGION` environment variable |
+| 3 | `AWS_DEFAULT_REGION` environment variable |
+| 4 | `region` in the active `~/.aws/config` profile |
+
+### Common patterns
+
+```bash
+# Use a named profile
+ssmctl --profile prod connect web-1
+
+# Override region for a single command
+ssmctl --region us-east-1 list
+
+# Use a profile that signs in via IAM Identity Center (SSO)
+aws sso login --profile staging
+ssmctl --profile staging connect api-1
+
+# Credentials from the environment (e.g. in CI)
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_REGION=eu-west-1
+ssmctl list
+```
+
+> [!IMPORTANT]
+> `ssmctl` does not store or manage credentials itself — it reads whatever the AWS SDK resolves. If a command fails with an authentication error, run `aws sts get-caller-identity --profile <name>` to verify your credentials are valid before filing a bug.
 
 ---
 

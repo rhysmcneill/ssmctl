@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 
@@ -45,7 +47,7 @@ ssmctl does not currently select automatically.`,
 			}
 
 			target := args[0]
-			command := args[dashAt:]
+			command := []string{joinShellArgs(args[dashAt:])}
 
 			targetInfo, err := ssmlib.ResolveTargetInfo(cmd.Context(), a.EC2Client, target)
 			if err != nil {
@@ -86,5 +88,38 @@ ssmctl does not currently select automatically.`,
 
 			return nil
 		},
+	}
+}
+
+func joinShellArgs(args []string) string {
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		quoted = append(quoted, shellArg(arg))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func shellArg(arg string) string {
+	if arg == "" {
+		return ssmlib.ShellQuote(arg)
+	}
+	for _, r := range arg {
+		if !isSafeShellRune(r) {
+			return ssmlib.ShellQuote(arg)
+		}
+	}
+	return arg
+}
+
+func isSafeShellRune(r rune) bool {
+	if unicode.IsLetter(r) || unicode.IsDigit(r) {
+		return true
+	}
+
+	switch r {
+	case '_', '@', '%', '+', '=', ':', ',', '.', '/', '-', '~':
+		return true
+	default:
+		return false
 	}
 }

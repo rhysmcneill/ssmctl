@@ -242,6 +242,105 @@ func TestRunCmd_DebugFlagDoesNotBreakExecution(t *testing.T) {
 	}
 }
 
+func TestRunCmd_JoinsCommandArgsIntoSingleShellLine(t *testing.T) {
+	var gotCommands []string
+
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			gotCommands = append([]string(nil), in.Parameters["commands"]...)
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-joined")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		SSMClient: client,
+	}
+
+	if err := executeRunCmd(context.Background(), a, []string{"run", "i-123", "--", "df", "-h", "/"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []string{"df -h /"}
+	if len(gotCommands) != len(want) || gotCommands[0] != want[0] {
+		t.Fatalf("commands = %#v, want %#v", gotCommands, want)
+	}
+}
+
+func TestRunCmd_QuotesGroupedAndEmbeddedQuoteArgs(t *testing.T) {
+	var gotCommands []string
+
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			gotCommands = append([]string(nil), in.Parameters["commands"]...)
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-quoted")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		SSMClient: client,
+	}
+
+	if err := executeRunCmd(context.Background(), a, []string{"run", "i-123", "--", "printf", "%s", "hello world", "it's"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []string{`printf %s 'hello world' 'it'\''s'`}
+	if len(gotCommands) != len(want) || gotCommands[0] != want[0] {
+		t.Fatalf("commands = %#v, want %#v", gotCommands, want)
+	}
+}
+
+func TestRunCmd_PreservesTildePrefixWithoutQuoting(t *testing.T) {
+	var gotCommands []string
+
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			gotCommands = append([]string(nil), in.Parameters["commands"]...)
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-tilde")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		SSMClient: client,
+	}
+
+	if err := executeRunCmd(context.Background(), a, []string{"run", "i-123", "--", "cat", "~/logs/app.log"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []string{"cat ~/logs/app.log"}
+	if len(gotCommands) != len(want) || gotCommands[0] != want[0] {
+		t.Fatalf("commands = %#v, want %#v", gotCommands, want)
+	}
+}
+
 func TestRunCmd_WindowsTargetReturnsError(t *testing.T) {
 	ec2Client := &mockEC2CmdClient{
 		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {

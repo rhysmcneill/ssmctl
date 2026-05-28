@@ -32,11 +32,9 @@ Download: ssmctl cp my-server:/var/log/app.log ./app.log
 Note: in-band SSM transfers are limited to ~2MB uploads and ~36KB downloads.
 Use --via s3://bucket/prefix to stage the file in S3 and lift those limits.
 
-Remote copy support is for Linux/macOS targets only. Uploads and downloads
-construct remote shell commands that depend on POSIX utilities such as cat and
-base64, which are not available by default on Windows targets. The S3-backed
-path additionally requires the AWS CLI on the instance and S3 access from the
-instance role.`,
+Linux/macOS targets use POSIX shell utilities under the hood. Windows targets
+use PowerShell for in-band transfers and require the AWS CLI on the instance
+for the S3-backed path.`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a := cmd.Context().Value(app.ContextKey{}).(*app.App)
@@ -66,13 +64,10 @@ instance role.`,
 				if resolveErr != nil {
 					return fmt.Errorf("resolve source instance: %w", resolveErr)
 				}
-				if target.IsWindows() {
-					return fmt.Errorf("cp does not currently support Windows targets; remote copy relies on POSIX utilities such as cat and base64")
-				}
 				if useS3 {
-					result, err = ssmlib.DownloadViaS3(cmd.Context(), a.SSMClient, a.S3Client, target.InstanceID, srcPath, dstPath, staging, opts.keepStaging, a.Config.Timeout)
+					result, err = ssmlib.DownloadViaS3(cmd.Context(), a.SSMClient, a.S3Client, target, srcPath, dstPath, staging, opts.keepStaging, a.Config.Timeout)
 				} else {
-					result, err = ssmlib.Download(cmd.Context(), a.SSMClient, target.InstanceID, srcPath, dstPath, a.Config.Timeout)
+					result, err = ssmlib.Download(cmd.Context(), a.SSMClient, target, srcPath, dstPath, a.Config.Timeout)
 				}
 
 			case !srcRemote && dstRemote:
@@ -80,13 +75,10 @@ instance role.`,
 				if resolveErr != nil {
 					return fmt.Errorf("resolve destination instance: %w", resolveErr)
 				}
-				if target.IsWindows() {
-					return fmt.Errorf("cp does not currently support Windows targets; remote copy relies on POSIX utilities such as cat and base64")
-				}
 				if useS3 {
-					result, err = ssmlib.UploadViaS3(cmd.Context(), a.SSMClient, a.S3Client, target.InstanceID, srcPath, dstPath, staging, opts.keepStaging, a.Config.Timeout)
+					result, err = ssmlib.UploadViaS3(cmd.Context(), a.SSMClient, a.S3Client, target, srcPath, dstPath, staging, opts.keepStaging, a.Config.Timeout)
 				} else {
-					result, err = ssmlib.Upload(cmd.Context(), a.SSMClient, target.InstanceID, srcPath, dstPath, a.Config.Timeout)
+					result, err = ssmlib.Upload(cmd.Context(), a.SSMClient, target, srcPath, dstPath, a.Config.Timeout)
 				}
 
 			default:

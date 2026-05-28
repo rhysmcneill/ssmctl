@@ -7,10 +7,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	awsssm "github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/spf13/cobra"
@@ -217,5 +220,73 @@ func TestCpCmd_UploadTextOutputSilent(t *testing.T) {
 	}
 	if buf.Len() != 0 {
 		t.Errorf("expected no output for text format, got: %s", buf.String())
+	}
+}
+
+func TestCpCmd_WindowsUploadUsesPowerShellDocument(t *testing.T) {
+	ssmlib.SetPollInterval(10 * time.Millisecond)
+	t.Cleanup(func() { ssmlib.SetPollInterval(2 * time.Second) })
+
+	localFile := filepath.Join(t.TempDir(), "upload.txt")
+	if err := os.WriteFile(localFile, []byte("hello windows cp"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var gotDocument string
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			gotDocument = aws.ToString(in.DocumentName)
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-win-cp")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	ec2Client := &mockEC2CmdClient{
+		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
+			return &awsec2.DescribeInstancesOutput{
+				Reservations: []ec2types.Reservation{
+					{
+						Instances: []ec2types.Instance{
+							{
+								InstanceId: aws.String("i-wincp"),
+								Platform:   ec2types.PlatformValuesWindows,
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Output: "json", Timeout: 30 * time.Second},
+		SSMClient: client,
+		EC2Client: ec2Client,
+		Printer:   &output.Printer{Format: "json"},
+	}
+
+	var buf bytes.Buffer
+	if err := executeCpCmdWithOutput(context.Background(), a, []string{"cp", localFile, `i-wincp:C:\Temp\upload.txt`}, &buf); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotDocument != "AWS-RunPowerShellScript" {
+		t.Fatalf("DocumentName = %q, want %q", gotDocument, "AWS-RunPowerShellScript")
+	}
+}
+
+func TestCpCmd_HelpMentionsWindowsTargetSupport(t *testing.T) {
+	out := cpCmd().Long
+	for _, want := range []string{"Windows targets", "PowerShell", "AWS CLI"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("cp help text missing %q:\n%s", want, out)
+		}
 	}
 }

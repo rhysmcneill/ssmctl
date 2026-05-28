@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -341,7 +340,26 @@ func TestRunCmd_PreservesTildePrefixWithoutQuoting(t *testing.T) {
 	}
 }
 
-func TestRunCmd_WindowsTargetReturnsError(t *testing.T) {
+func TestRunCmd_WindowsTargetUsesPowerShellDocument(t *testing.T) {
+	var gotDocument string
+	var gotCommands []string
+
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			gotDocument = aws.ToString(in.DocumentName)
+			gotCommands = append([]string(nil), in.Parameters["commands"]...)
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-win")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
 	ec2Client := &mockEC2CmdClient{
 		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
 			return &awsec2.DescribeInstancesOutput{
@@ -361,15 +379,72 @@ func TestRunCmd_WindowsTargetReturnsError(t *testing.T) {
 
 	a := &app.App{
 		Config:    &config.Config{Timeout: 30 * time.Second},
+		SSMClient: client,
 		EC2Client: ec2Client,
 	}
 
-	err := executeRunCmd(context.Background(), a, []string{"run", "i-wintest", "--", "dir"})
-	if err == nil {
-		t.Fatal("expected error for Windows target, got nil")
+	err := executeRunCmd(context.Background(), a, []string{"run", "i-wintest", "--", "Write-Output", "hello world", "it's"})
+	if err != nil {
+		t.Fatalf("expected Windows target to run, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "Windows") {
-		t.Errorf("error should mention Windows, got: %v", err)
+	if gotDocument != "AWS-RunPowerShellScript" {
+		t.Fatalf("DocumentName = %q, want %q", gotDocument, "AWS-RunPowerShellScript")
+	}
+	wantCommands := []string{`Write-Output 'hello world' 'it''s'`}
+	if len(gotCommands) != len(wantCommands) || gotCommands[0] != wantCommands[0] {
+		t.Fatalf("commands = %#v, want %#v", gotCommands, wantCommands)
+	}
+}
+
+func TestRunCmd_WindowsTargetQuotesCommandPathWithSpaces(t *testing.T) {
+	var gotCommands []string
+
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			gotCommands = append([]string(nil), in.Parameters["commands"]...)
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-win-path")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	ec2Client := &mockEC2CmdClient{
+		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
+			return &awsec2.DescribeInstancesOutput{
+				Reservations: []ec2types.Reservation{
+					{
+						Instances: []ec2types.Instance{
+							{
+								InstanceId: aws.String("i-wintest"),
+								Platform:   ec2types.PlatformValuesWindows,
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		SSMClient: client,
+		EC2Client: ec2Client,
+	}
+
+	err := executeRunCmd(context.Background(), a, []string{"run", "i-wintest", "--", `C:\Program Files\My Tool\tool.exe`, "arg value"})
+	if err != nil {
+		t.Fatalf("expected Windows target to run, got %v", err)
+	}
+
+	wantCommands := []string{`& 'C:\Program Files\My Tool\tool.exe' 'arg value'`}
+	if len(gotCommands) != len(wantCommands) || gotCommands[0] != wantCommands[0] {
+		t.Fatalf("commands = %#v, want %#v", gotCommands, wantCommands)
 	}
 }
 

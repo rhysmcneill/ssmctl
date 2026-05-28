@@ -71,7 +71,7 @@ func benchmarkUpload(b *testing.B, size int) {
 	for i := 0; i < b.N; i++ {
 		localFile := writeTemp(b, size)
 		dst := filepath.Join(b.TempDir(), "dst.bin")
-		_, err := ssmlib.Upload(context.Background(), client, "i-bench", localFile, dst, 30*time.Second)
+		_, err := ssmlib.Upload(context.Background(), client, ssmlib.TargetInfo{InstanceID: "i-bench"}, localFile, dst, 30*time.Second)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -91,7 +91,7 @@ func benchmarkDownload(b *testing.B, size int) {
 	client := &benchSSMClient{stdout: encoded}
 	for i := 0; i < b.N; i++ {
 		dst := filepath.Join(b.TempDir(), "download.bin")
-		_, err := ssmlib.Download(context.Background(), client, "i-bench", "/remote/file.bin", dst, 30*time.Second)
+		_, err := ssmlib.Download(context.Background(), client, ssmlib.TargetInfo{InstanceID: "i-bench"}, "/remote/file.bin", dst, 30*time.Second)
 		if err != nil {
 			b.Fatal(err)
 		}

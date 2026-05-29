@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awsssm "github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/spf13/cobra"
@@ -35,6 +37,12 @@ func executeCpCmdWithOutput(ctx context.Context, a *app.App, args []string, buf 
 	return root.ExecuteContext(context.WithValue(ctx, app.ContextKey{}, a)) //nolint:wrapcheck
 }
 
+type mockS3CmdClient struct {
+	putObjectFn    func(context.Context, *s3.PutObjectInput) error
+	getObjectFn    func(context.Context, *s3.GetObjectInput) ([]byte, error)
+	deleteObjectFn func(context.Context, *s3.DeleteObjectInput) error
+}
+
 func alwaysSucceedSSMClient() *mockSSMCmdClient {
 	return &mockSSMCmdClient{
 		sendCommandFn: func(_ context.Context, _ *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
@@ -50,6 +58,35 @@ func alwaysSucceedSSMClient() *mockSSMCmdClient {
 			}, nil
 		},
 	}
+}
+
+func (m *mockS3CmdClient) PutObject(ctx context.Context, in *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	if m.putObjectFn != nil {
+		if err := m.putObjectFn(ctx, in); err != nil {
+			return nil, err
+		}
+	}
+	return &s3.PutObjectOutput{}, nil
+}
+
+func (m *mockS3CmdClient) GetObject(ctx context.Context, in *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+	if m.getObjectFn != nil {
+		body, err := m.getObjectFn(ctx, in)
+		if err != nil {
+			return nil, err
+		}
+		return &s3.GetObjectOutput{Body: io.NopCloser(bytes.NewReader(body))}, nil
+	}
+	return &s3.GetObjectOutput{Body: io.NopCloser(bytes.NewReader(nil))}, nil
+}
+
+func (m *mockS3CmdClient) DeleteObject(ctx context.Context, in *s3.DeleteObjectInput, _ ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+	if m.deleteObjectFn != nil {
+		if err := m.deleteObjectFn(ctx, in); err != nil {
+			return nil, err
+		}
+	}
+	return &s3.DeleteObjectOutput{}, nil
 }
 
 func TestCpCmd_UploadJSONOutput(t *testing.T) {
@@ -279,6 +316,82 @@ func TestCpCmd_WindowsUploadUsesPowerShellDocument(t *testing.T) {
 
 	if gotDocument != "AWS-RunPowerShellScript" {
 		t.Fatalf("DocumentName = %q, want %q", gotDocument, "AWS-RunPowerShellScript")
+	}
+}
+
+func TestCpCmd_UploadViaS3RoutesThroughS3Path(t *testing.T) {
+	ssmlib.SetPollInterval(10 * time.Millisecond)
+	t.Cleanup(func() { ssmlib.SetPollInterval(2 * time.Second) })
+
+	localFile := filepath.Join(t.TempDir(), "upload.txt")
+	if err := os.WriteFile(localFile, []byte("hello via s3"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	client := alwaysSucceedSSMClient()
+	s3Client := &mockS3CmdClient{
+		putObjectFn: func(_ context.Context, in *s3.PutObjectInput) error {
+			if aws.ToString(in.Bucket) != "bucket" {
+				t.Fatalf("PutObject bucket = %q, want %q", aws.ToString(in.Bucket), "bucket")
+			}
+			return nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Output: "json", Timeout: 30 * time.Second},
+		SSMClient: client,
+		S3Client:  s3Client,
+		Printer:   &output.Printer{Format: "json"},
+	}
+
+	var buf bytes.Buffer
+	if err := executeCpCmdWithOutput(context.Background(), a, []string{"cp", "--via", "s3://bucket/tmp", localFile, "i-123:/tmp/upload.txt"}, &buf); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got ssmlib.TransferResult
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nraw: %s", err, buf.String())
+	}
+	if got.Via != "s3" {
+		t.Fatalf("Via = %q, want %q", got.Via, "s3")
+	}
+}
+
+func TestCpCmd_DownloadViaS3RoutesThroughS3Path(t *testing.T) {
+	ssmlib.SetPollInterval(10 * time.Millisecond)
+	t.Cleanup(func() { ssmlib.SetPollInterval(2 * time.Second) })
+
+	client := alwaysSucceedSSMClient()
+	s3Client := &mockS3CmdClient{
+		getObjectFn: func(_ context.Context, in *s3.GetObjectInput) ([]byte, error) {
+			if aws.ToString(in.Bucket) != "bucket" {
+				t.Fatalf("GetObject bucket = %q, want %q", aws.ToString(in.Bucket), "bucket")
+			}
+			return []byte("downloaded via s3"), nil
+		},
+	}
+
+	localFile := filepath.Join(t.TempDir(), "download.txt")
+	a := &app.App{
+		Config:    &config.Config{Output: "json", Timeout: 30 * time.Second},
+		SSMClient: client,
+		S3Client:  s3Client,
+		Printer:   &output.Printer{Format: "json"},
+	}
+
+	var buf bytes.Buffer
+	if err := executeCpCmdWithOutput(context.Background(), a, []string{"cp", "--via", "s3://bucket/tmp", "i-123:/remote/file.txt", localFile}, &buf); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got ssmlib.TransferResult
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nraw: %s", err, buf.String())
+	}
+	if got.Via != "s3" {
+		t.Fatalf("Via = %q, want %q", got.Via, "s3")
 	}
 }
 

@@ -274,6 +274,35 @@ func TestRunCmd_JoinsCommandArgsIntoSingleShellLine(t *testing.T) {
 	}
 }
 
+func TestJoinPowerShellArgs_Empty(t *testing.T) {
+	if got := joinPowerShellArgs(nil); got != "" {
+		t.Fatalf("joinPowerShellArgs(nil) = %q, want empty string", got)
+	}
+}
+
+func TestJoinPowerShellArgs_QuotesUnsafeCommandName(t *testing.T) {
+	got := joinPowerShellArgs([]string{`C:\Program Files\Tool\tool.exe`, "arg value"})
+	want := `& 'C:\Program Files\Tool\tool.exe' 'arg value'`
+	if got != want {
+		t.Fatalf("joinPowerShellArgs() = %q, want %q", got, want)
+	}
+}
+
+func TestShellAndPowerShellArg_EmptyString(t *testing.T) {
+	if got := shellArg(""); got != "''" {
+		t.Fatalf("shellArg(\"\") = %q, want %q", got, "''")
+	}
+	if got := powerShellArg(""); got != "''" {
+		t.Fatalf("powerShellArg(\"\") = %q, want %q", got, "''")
+	}
+}
+
+func TestPowerShellCommandName_EmptyString(t *testing.T) {
+	if got := powerShellCommandName(""); got != "& ''" {
+		t.Fatalf("powerShellCommandName(\"\") = %q, want %q", got, "& ''")
+	}
+}
+
 func TestRunCmd_QuotesGroupedAndEmbeddedQuoteArgs(t *testing.T) {
 	var gotCommands []string
 

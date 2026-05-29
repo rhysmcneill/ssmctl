@@ -344,6 +344,12 @@ func TestShellAndPowerShellArg_EmptyString(t *testing.T) {
 	}
 }
 
+func TestPowerShellArg_SafeString(t *testing.T) {
+	if got := powerShellArg("Get-Process"); got != "Get-Process" {
+		t.Fatalf("powerShellArg() = %q, want %q", got, "Get-Process")
+	}
+}
+
 func TestPowerShellCommandName_EmptyString(t *testing.T) {
 	if got := powerShellCommandName(""); got != "& ''" {
 		t.Fatalf("powerShellCommandName(\"\") = %q, want %q", got, "& ''")

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,6 +107,27 @@ func TestRunCmd_MissingDashDashReturnsError(t *testing.T) {
 	err := executeRunCmd(context.Background(), a, []string{"run", "i-123"})
 	if err == nil {
 		t.Fatal("expected error for missing --, got nil")
+	}
+}
+
+func TestRunCmd_ResolveTargetErrorIsWrapped(t *testing.T) {
+	ec2Client := &mockEC2CmdClient{
+		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
+			return nil, errors.New("ec2 unavailable")
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		EC2Client: ec2Client,
+	}
+
+	err := executeRunCmd(context.Background(), a, []string{"run", "named-target", "--", "echo", "hi"})
+	if err == nil {
+		t.Fatal("expected resolve target error, got nil")
+	}
+	if !strings.Contains(err.Error(), "resolve target") {
+		t.Fatalf("error = %q, want wrapped resolve target message", err.Error())
 	}
 }
 
@@ -238,6 +260,31 @@ func TestRunCmd_DebugFlagDoesNotBreakExecution(t *testing.T) {
 	err := executeRunCmd(context.Background(), a, []string{"run", "i-123", "--", "echo", "hi"})
 	if err != nil {
 		t.Fatalf("expected no error with debug flag, got %v", err)
+	}
+}
+
+func TestRunCmd_RunCommandErrorIsWrapped(t *testing.T) {
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, _ *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			return nil, errors.New("send failed")
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			t.Fatal("GetCommandInvocation should not be called when SendCommand fails")
+			return nil, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		SSMClient: client,
+	}
+
+	err := executeRunCmd(context.Background(), a, []string{"run", "i-123", "--", "echo", "hi"})
+	if err == nil {
+		t.Fatal("expected run command error, got nil")
+	}
+	if !strings.Contains(err.Error(), "run command") {
+		t.Fatalf("error = %q, want wrapped run command message", err.Error())
 	}
 }
 

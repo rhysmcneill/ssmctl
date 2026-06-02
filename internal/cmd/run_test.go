@@ -350,6 +350,12 @@ func TestPowerShellArg_SafeString(t *testing.T) {
 	}
 }
 
+func TestPowerShellArg_QuotesAtPrefixedString(t *testing.T) {
+	if got := powerShellArg("@hash"); got != "'@hash'" {
+		t.Fatalf("powerShellArg() = %q, want %q", got, "'@hash'")
+	}
+}
+
 func TestPowerShellCommandName_EmptyString(t *testing.T) {
 	if got := powerShellCommandName(""); got != "& ''" {
 		t.Fatalf("powerShellCommandName(\"\") = %q, want %q", got, "& ''")

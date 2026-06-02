@@ -70,7 +70,7 @@ ec2:DescribeInstances          (for Name tag resolution)
 ### `ssmctl run`
 
 ```
-ssm:SendCommand                (document: AWS-RunShellScript)
+ssm:SendCommand                (document: AWS-RunShellScript or AWS-RunPowerShellScript)
 ssm:GetCommandInvocation
 ec2:DescribeInstances          (for Name tag resolution)
 ```
@@ -78,7 +78,7 @@ ec2:DescribeInstances          (for Name tag resolution)
 ### `ssmctl cp` (in-band, no S3)
 
 ```
-ssm:SendCommand                (document: AWS-RunShellScript)
+ssm:SendCommand                (document: AWS-RunShellScript or AWS-RunPowerShellScript)
 ssm:GetCommandInvocation
 ec2:DescribeInstances          (for Name tag resolution)
 ```
@@ -90,7 +90,7 @@ The S3-backed transfer path requires permissions on **both** the caller's identi
 **Caller identity (the person running ssmctl):**
 
 ```
-ssm:SendCommand                (document: AWS-RunShellScript)
+ssm:SendCommand                (document: AWS-RunShellScript or AWS-RunPowerShellScript)
 ssm:GetCommandInvocation
 ec2:DescribeInstances
 s3:PutObject                   (upload: caller stages the file)

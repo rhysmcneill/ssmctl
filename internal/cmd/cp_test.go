@@ -395,6 +395,71 @@ func TestCpCmd_DownloadViaS3RoutesThroughS3Path(t *testing.T) {
 	}
 }
 
+func TestCpCmd_WindowsDownloadViaS3UsesPowerShellDocument(t *testing.T) {
+	ssmlib.SetPollInterval(10 * time.Millisecond)
+	t.Cleanup(func() { ssmlib.SetPollInterval(2 * time.Second) })
+
+	var gotDocument string
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			gotDocument = aws.ToString(in.DocumentName)
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-win-dl-s3")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	ec2Client := &mockEC2CmdClient{
+		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
+			return &awsec2.DescribeInstancesOutput{
+				Reservations: []ec2types.Reservation{
+					{
+						Instances: []ec2types.Instance{
+							{
+								InstanceId: aws.String("i-win-dl"),
+								Platform:   ec2types.PlatformValuesWindows,
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	s3Client := &mockS3CmdClient{
+		getObjectFn: func(_ context.Context, in *s3.GetObjectInput) ([]byte, error) {
+			if aws.ToString(in.Bucket) != "bucket" {
+				t.Fatalf("GetObject bucket = %q, want %q", aws.ToString(in.Bucket), "bucket")
+			}
+			return []byte("windows download via s3"), nil
+		},
+	}
+
+	localFile := filepath.Join(t.TempDir(), "download.txt")
+	a := &app.App{
+		Config:    &config.Config{Output: "json", Timeout: 30 * time.Second},
+		SSMClient: client,
+		EC2Client: ec2Client,
+		S3Client:  s3Client,
+		Printer:   &output.Printer{Format: "json"},
+	}
+
+	var buf bytes.Buffer
+	if err := executeCpCmdWithOutput(context.Background(), a, []string{"cp", "--via", "s3://bucket/tmp", `i-win-dl:C:\Temp\file.txt`, localFile}, &buf); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotDocument != "AWS-RunPowerShellScript" {
+		t.Fatalf("DocumentName = %q, want %q", gotDocument, "AWS-RunPowerShellScript")
+	}
+}
+
 func TestCpCmd_HelpMentionsWindowsTargetSupport(t *testing.T) {
 	out := cpCmd().Long
 	for _, want := range []string{"Windows targets", "PowerShell", "AWS CLI"} {

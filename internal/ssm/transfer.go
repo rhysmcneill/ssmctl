@@ -11,6 +11,9 @@ import (
 )
 
 const (
+	// These scratch paths are shared per-instance, so concurrent transfers to
+	// the same target can race and clobber each other. Keep only one active
+	// in-band transfer per instance until we move to unique temp paths.
 	unixTempFile    = "/tmp/._ssmctl_transfer"
 	windowsTempFile = `C:\Windows\Temp\._ssmctl_transfer`
 	chunkSize       = 3072

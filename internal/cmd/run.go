@@ -170,7 +170,7 @@ func isSafePowerShellRune(r rune) bool {
 	}
 
 	switch r {
-	case '_', '@', '%', '+', '=', ':', ',', '.', '/', '\\', '-', '~':
+	case '_', '%', '+', '=', ':', ',', '.', '/', '\\', '-', '~':
 		return true
 	default:
 		return false

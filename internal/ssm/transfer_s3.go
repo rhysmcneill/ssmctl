@@ -199,6 +199,10 @@ func DownloadViaS3(
 	keepStaging bool,
 	timeout time.Duration,
 ) (*TransferResult, error) {
+	// Derive the staging basename from the original user path before any
+	// Windows-only normalization. remoteBaseName handles backslash conversion
+	// itself, so keeping the raw path here avoids coupling key naming to the
+	// later command-string rewrite.
 	key, err := stagingKeyFunc(staging.Prefix, remoteBaseName(target, remotePath))
 	if err != nil {
 		return nil, err

@@ -12,9 +12,7 @@ import (
 )
 
 // RedactingLogger returns a middleware that logs AWS requests while redacting sensitive headers.
-// If debug is false, it returns a no-op middleware that passes requests through unchanged.
 func RedactingLogger() func(next middleware.SerializeHandler) middleware.SerializeHandler {
-
 	debugLog := log.New(os.Stderr, "[DEBUG AWS] ", log.LstdFlags)
 
 	return func(next middleware.SerializeHandler) middleware.SerializeHandler {

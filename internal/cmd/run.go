@@ -33,9 +33,8 @@ func runCmd() *cobra.Command {
 		Short: "Execute a command on a target instance via SSM",
 		Long: `Execute a command on a target instance via SSM.
 
-The run command uses the AWS-RunShellScript document and is intended for
-Linux/macOS targets. Windows targets require AWS-RunPowerShellScript, which
-ssmctl does not currently select automatically.`,
+The run command uses AWS-RunShellScript for Linux/macOS targets and
+AWS-RunPowerShellScript for Windows targets.`,
 		Args:               cobra.MinimumNArgs(1),
 		FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -47,17 +46,17 @@ ssmctl does not currently select automatically.`,
 			}
 
 			target := args[0]
-			command := []string{joinShellArgs(args[dashAt:])}
 
 			targetInfo, err := ssmlib.ResolveTargetInfo(cmd.Context(), a.EC2Client, target)
 			if err != nil {
 				return fmt.Errorf("resolve target: %w", err)
 			}
+			command := []string{joinShellArgs(args[dashAt:])}
 			if targetInfo.IsWindows() {
-				return fmt.Errorf("run does not currently support Windows targets; Windows targets require AWS-RunPowerShellScript, which ssmctl does not currently select automatically")
+				command = []string{joinPowerShellArgs(args[dashAt:])}
 			}
 
-			result, err := ssmlib.RunCommand(cmd.Context(), a.SSMClient, targetInfo.InstanceID, command, a.Config.Timeout)
+			result, err := ssmlib.RunCommandForTarget(cmd.Context(), a.SSMClient, targetInfo, command, a.Config.Timeout)
 			if err != nil {
 				return fmt.Errorf("run command: %w", err)
 			}
@@ -92,9 +91,26 @@ ssmctl does not currently select automatically.`,
 }
 
 func joinShellArgs(args []string) string {
+	return joinArgs(args, shellArg)
+}
+
+func joinPowerShellArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	quoted := make([]string, 0, len(args))
+	quoted = append(quoted, powerShellCommandName(args[0]))
+	for _, arg := range args[1:] {
+		quoted = append(quoted, powerShellArg(arg))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func joinArgs(args []string, quote func(string) string) string {
 	quoted := make([]string, 0, len(args))
 	for _, arg := range args {
-		quoted = append(quoted, shellArg(arg))
+		quoted = append(quoted, quote(arg))
 	}
 	return strings.Join(quoted, " ")
 }
@@ -111,6 +127,30 @@ func shellArg(arg string) string {
 	return arg
 }
 
+func powerShellArg(arg string) string {
+	if arg == "" {
+		return ssmlib.PowerShellQuote(arg)
+	}
+	for _, r := range arg {
+		if !isSafePowerShellRune(r) {
+			return ssmlib.PowerShellQuote(arg)
+		}
+	}
+	return arg
+}
+
+func powerShellCommandName(arg string) string {
+	if arg == "" {
+		return "& " + ssmlib.PowerShellQuote(arg)
+	}
+	for _, r := range arg {
+		if !isSafePowerShellRune(r) {
+			return "& " + ssmlib.PowerShellQuote(arg)
+		}
+	}
+	return arg
+}
+
 func isSafeShellRune(r rune) bool {
 	if unicode.IsLetter(r) || unicode.IsDigit(r) {
 		return true
@@ -118,6 +158,19 @@ func isSafeShellRune(r rune) bool {
 
 	switch r {
 	case '_', '@', '%', '+', '=', ':', ',', '.', '/', '-', '~':
+		return true
+	default:
+		return false
+	}
+}
+
+func isSafePowerShellRune(r rune) bool {
+	if unicode.IsLetter(r) || unicode.IsDigit(r) {
+		return true
+	}
+
+	switch r {
+	case '_', '%', '+', '=', ':', ',', '.', '/', '\\', '-', '~':
 		return true
 	default:
 		return false

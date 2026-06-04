@@ -110,6 +110,27 @@ func TestRunCmd_MissingDashDashReturnsError(t *testing.T) {
 	}
 }
 
+func TestRunCmd_ResolveTargetErrorIsWrapped(t *testing.T) {
+	ec2Client := &mockEC2CmdClient{
+		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
+			return nil, errors.New("ec2 unavailable")
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		EC2Client: ec2Client,
+	}
+
+	err := executeRunCmd(context.Background(), a, []string{"run", "named-target", "--", "echo", "hi"})
+	if err == nil {
+		t.Fatal("expected resolve target error, got nil")
+	}
+	if !strings.Contains(err.Error(), "resolve target") {
+		t.Fatalf("error = %q, want wrapped resolve target message", err.Error())
+	}
+}
+
 func TestExitCodeError_Error(t *testing.T) {
 	err := &ExitCodeError{ExitCode: 42}
 	want := "command exited with code 42"
@@ -242,6 +263,31 @@ func TestRunCmd_DebugFlagDoesNotBreakExecution(t *testing.T) {
 	}
 }
 
+func TestRunCmd_RunCommandErrorIsWrapped(t *testing.T) {
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, _ *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			return nil, errors.New("send failed")
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			t.Fatal("GetCommandInvocation should not be called when SendCommand fails")
+			return nil, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		SSMClient: client,
+	}
+
+	err := executeRunCmd(context.Background(), a, []string{"run", "i-123", "--", "echo", "hi"})
+	if err == nil {
+		t.Fatal("expected run command error, got nil")
+	}
+	if !strings.Contains(err.Error(), "run command") {
+		t.Fatalf("error = %q, want wrapped run command message", err.Error())
+	}
+}
+
 func TestRunCmd_JoinsCommandArgsIntoSingleShellLine(t *testing.T) {
 	var gotCommands []string
 
@@ -272,6 +318,47 @@ func TestRunCmd_JoinsCommandArgsIntoSingleShellLine(t *testing.T) {
 	want := []string{"df -h /"}
 	if len(gotCommands) != len(want) || gotCommands[0] != want[0] {
 		t.Fatalf("commands = %#v, want %#v", gotCommands, want)
+	}
+}
+
+func TestJoinPowerShellArgs_Empty(t *testing.T) {
+	if got := joinPowerShellArgs(nil); got != "" {
+		t.Fatalf("joinPowerShellArgs(nil) = %q, want empty string", got)
+	}
+}
+
+func TestJoinPowerShellArgs_QuotesUnsafeCommandName(t *testing.T) {
+	got := joinPowerShellArgs([]string{`C:\Program Files\Tool\tool.exe`, "arg value"})
+	want := `& 'C:\Program Files\Tool\tool.exe' 'arg value'`
+	if got != want {
+		t.Fatalf("joinPowerShellArgs() = %q, want %q", got, want)
+	}
+}
+
+func TestShellAndPowerShellArg_EmptyString(t *testing.T) {
+	if got := shellArg(""); got != "''" {
+		t.Fatalf("shellArg(\"\") = %q, want %q", got, "''")
+	}
+	if got := powerShellArg(""); got != "''" {
+		t.Fatalf("powerShellArg(\"\") = %q, want %q", got, "''")
+	}
+}
+
+func TestPowerShellArg_SafeString(t *testing.T) {
+	if got := powerShellArg("Get-Process"); got != "Get-Process" {
+		t.Fatalf("powerShellArg() = %q, want %q", got, "Get-Process")
+	}
+}
+
+func TestPowerShellArg_QuotesAtPrefixedString(t *testing.T) {
+	if got := powerShellArg("@hash"); got != "'@hash'" {
+		t.Fatalf("powerShellArg() = %q, want %q", got, "'@hash'")
+	}
+}
+
+func TestPowerShellCommandName_EmptyString(t *testing.T) {
+	if got := powerShellCommandName(""); got != "& ''" {
+		t.Fatalf("powerShellCommandName(\"\") = %q, want %q", got, "& ''")
 	}
 }
 
@@ -341,7 +428,26 @@ func TestRunCmd_PreservesTildePrefixWithoutQuoting(t *testing.T) {
 	}
 }
 
-func TestRunCmd_WindowsTargetReturnsError(t *testing.T) {
+func TestRunCmd_WindowsTargetUsesPowerShellDocument(t *testing.T) {
+	var gotDocument string
+	var gotCommands []string
+
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			gotDocument = aws.ToString(in.DocumentName)
+			gotCommands = append([]string(nil), in.Parameters["commands"]...)
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-win")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
 	ec2Client := &mockEC2CmdClient{
 		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
 			return &awsec2.DescribeInstancesOutput{
@@ -361,15 +467,72 @@ func TestRunCmd_WindowsTargetReturnsError(t *testing.T) {
 
 	a := &app.App{
 		Config:    &config.Config{Timeout: 30 * time.Second},
+		SSMClient: client,
 		EC2Client: ec2Client,
 	}
 
-	err := executeRunCmd(context.Background(), a, []string{"run", "i-wintest", "--", "dir"})
-	if err == nil {
-		t.Fatal("expected error for Windows target, got nil")
+	err := executeRunCmd(context.Background(), a, []string{"run", "i-wintest", "--", "Write-Output", "hello world", "it's"})
+	if err != nil {
+		t.Fatalf("expected Windows target to run, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "Windows") {
-		t.Errorf("error should mention Windows, got: %v", err)
+	if gotDocument != "AWS-RunPowerShellScript" {
+		t.Fatalf("DocumentName = %q, want %q", gotDocument, "AWS-RunPowerShellScript")
+	}
+	wantCommands := []string{`Write-Output 'hello world' 'it''s'`}
+	if len(gotCommands) != len(wantCommands) || gotCommands[0] != wantCommands[0] {
+		t.Fatalf("commands = %#v, want %#v", gotCommands, wantCommands)
+	}
+}
+
+func TestRunCmd_WindowsTargetQuotesCommandPathWithSpaces(t *testing.T) {
+	var gotCommands []string
+
+	client := &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			gotCommands = append([]string(nil), in.Parameters["commands"]...)
+			return &awsssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-win-path")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	ec2Client := &mockEC2CmdClient{
+		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
+			return &awsec2.DescribeInstancesOutput{
+				Reservations: []ec2types.Reservation{
+					{
+						Instances: []ec2types.Instance{
+							{
+								InstanceId: aws.String("i-wintest"),
+								Platform:   ec2types.PlatformValuesWindows,
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	a := &app.App{
+		Config:    &config.Config{Timeout: 30 * time.Second},
+		SSMClient: client,
+		EC2Client: ec2Client,
+	}
+
+	err := executeRunCmd(context.Background(), a, []string{"run", "i-wintest", "--", `C:\Program Files\My Tool\tool.exe`, "arg value"})
+	if err != nil {
+		t.Fatalf("expected Windows target to run, got %v", err)
+	}
+
+	wantCommands := []string{`& 'C:\Program Files\My Tool\tool.exe' 'arg value'`}
+	if len(gotCommands) != len(wantCommands) || gotCommands[0] != wantCommands[0] {
+		t.Fatalf("commands = %#v, want %#v", gotCommands, wantCommands)
 	}
 }
 

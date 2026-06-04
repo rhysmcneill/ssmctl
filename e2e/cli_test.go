@@ -38,7 +38,7 @@ func TestHelp_RunSubcommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run --help exited with error: %v\noutput: %s", err, out)
 	}
-	for _, want := range []string{"run", "Linux/macOS targets", "AWS-RunPowerShellScript"} {
+	for _, want := range []string{"run", "AWS-RunShellScript", "AWS-RunPowerShellScript"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("run --help output missing %q:\n%s", want, out)
 		}
@@ -50,7 +50,7 @@ func TestHelp_CpSubcommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cp --help exited with error: %v\noutput: %s", err, out)
 	}
-	for _, want := range []string{"cp", "Linux/macOS targets only", "POSIX utilities", "--via", "--keep-staging"} {
+	for _, want := range []string{"cp", "Windows targets", "PowerShell", "--via", "--keep-staging"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("cp --help output missing %q:\n%s", want, out)
 		}

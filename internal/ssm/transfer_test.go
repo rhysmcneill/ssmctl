@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
@@ -109,7 +110,7 @@ func TestUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := Upload(context.Background(), alwaysSucceedClient(), "i-123", localFile, "/tmp/upload.txt", 30*time.Second)
+	result, err := Upload(context.Background(), alwaysSucceedClient(), TargetInfo{InstanceID: "i-123"}, localFile, "/tmp/upload.txt", 30*time.Second)
 	if err != nil {
 		t.Fatalf("Upload() error = %v", err)
 	}
@@ -157,7 +158,7 @@ func TestDownload(t *testing.T) {
 
 	localFile := filepath.Join(t.TempDir(), "download.txt")
 
-	result, err := Download(context.Background(), client, "i-123", "/remote/file.txt", localFile, 30*time.Second)
+	result, err := Download(context.Background(), client, TargetInfo{InstanceID: "i-123"}, "/remote/file.txt", localFile, 30*time.Second)
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
 	}
@@ -206,7 +207,7 @@ func TestDownload_RemoteCommandFails(t *testing.T) {
 	}
 
 	localFile := filepath.Join(t.TempDir(), "should_not_exist.txt")
-	_, err := Download(context.Background(), client, "i-123", "/nonexistent/file.txt", localFile, 30*time.Second)
+	_, err := Download(context.Background(), client, TargetInfo{InstanceID: "i-123"}, "/nonexistent/file.txt", localFile, 30*time.Second)
 	if err == nil {
 		t.Fatal("expected error for failed remote command, got nil")
 	}
@@ -264,11 +265,102 @@ func TestUploadChunkWithSpecialBase64Characters(t *testing.T) {
 	}
 
 	// Upload should succeed with special base64 characters safely embedded in heredoc.
-	_, err := Upload(context.Background(), client, "i-123", localFile, "/tmp/special.bin", 30*time.Second)
+	_, err := Upload(context.Background(), client, TargetInfo{InstanceID: "i-123"}, localFile, "/tmp/special.bin", 30*time.Second)
 	if err != nil {
 		t.Fatalf("Upload() with special base64 chars error = %v", err)
 	}
 	if !heredocFound {
 		t.Error("expected at least one chunk command to use heredoc syntax, got none")
+	}
+}
+
+func TestUpload_WindowsUsesPowerShellCommands(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	localFile := filepath.Join(t.TempDir(), "upload.txt")
+	if err := os.WriteFile(localFile, []byte("hello windows upload"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var commands []string
+	var documents []string
+	client := &mockSSMRunClient{
+		sendCommandFn: func(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+			documents = append(documents, aws.ToString(input.DocumentName))
+			commands = append(commands, input.Parameters["commands"]...)
+			return &ssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-win-upload")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return &ssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	target := TargetInfo{InstanceID: "i-win", Platform: ec2types.PlatformValuesWindows}
+	if _, err := Upload(context.Background(), client, target, localFile, `C:/Temp/ssmctl/upload.txt`, 30*time.Second); err != nil {
+		t.Fatalf("Upload() error = %v", err)
+	}
+
+	if len(commands) < 3 {
+		t.Fatalf("expected at least 3 commands, got %d", len(commands))
+	}
+	for _, doc := range documents {
+		if doc != runPowerShellDocument {
+			t.Fatalf("DocumentName = %q, want %q", doc, runPowerShellDocument)
+		}
+	}
+	if !strings.Contains(commands[0], "[System.IO.File]::WriteAllBytes") {
+		t.Fatalf("init command = %q, want WriteAllBytes", commands[0])
+	}
+	if !strings.Contains(commands[1], "[System.Convert]::FromBase64String") || !strings.Contains(commands[1], "[System.IO.File]::Open") {
+		t.Fatalf("chunk command = %q, want PowerShell append logic", commands[1])
+	}
+	if !strings.Contains(commands[len(commands)-1], "Move-Item -Force -LiteralPath") || !strings.Contains(commands[len(commands)-1], `C:\Temp\ssmctl\upload.txt`) {
+		t.Fatalf("final command = %q, want PowerShell move to normalized Windows path", commands[len(commands)-1])
+	}
+}
+
+func TestDownload_WindowsUsesPowerShellCommands(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	content := "hello windows download"
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+
+	var gotDocument string
+	var gotCommand string
+	client := &mockSSMRunClient{
+		sendCommandFn: func(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+			gotDocument = aws.ToString(input.DocumentName)
+			gotCommand = input.Parameters["commands"][0]
+			return &ssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-win-download")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return &ssm.GetCommandInvocationOutput{
+				Status:                types.CommandInvocationStatusSuccess,
+				StandardOutputContent: aws.String(encoded),
+				ResponseCode:          0,
+			}, nil
+		},
+	}
+
+	localFile := filepath.Join(t.TempDir(), "download.txt")
+	target := TargetInfo{InstanceID: "i-win", Platform: ec2types.PlatformValuesWindows}
+	if _, err := Download(context.Background(), client, target, `C:/Logs/app.log`, localFile, 30*time.Second); err != nil {
+		t.Fatalf("Download() error = %v", err)
+	}
+
+	if gotDocument != runPowerShellDocument {
+		t.Fatalf("DocumentName = %q, want %q", gotDocument, runPowerShellDocument)
+	}
+	if !strings.Contains(gotCommand, "[System.IO.File]::ReadAllBytes") || !strings.Contains(gotCommand, `C:\Logs\app.log`) {
+		t.Fatalf("command = %q, want PowerShell ReadAllBytes against normalized Windows path", gotCommand)
 	}
 }

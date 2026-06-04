@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
@@ -126,6 +127,79 @@ func TestRunCommand_SendCommandError(t *testing.T) {
 	_, err := RunCommand(context.Background(), client, "i-123", []string{"echo hi"}, 30*time.Second)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestRunPowerShellCommand_UsesPowerShellDocument(t *testing.T) {
+	var gotDocument string
+
+	client := &mockSSMRunClient{
+		sendCommandFn: func(_ context.Context, in *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+			gotDocument = aws.ToString(in.DocumentName)
+			return &ssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-ps")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return &ssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	if _, err := RunPowerShellCommand(context.Background(), client, "i-win", []string{"Get-Process"}, 30*time.Second); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotDocument != runPowerShellDocument {
+		t.Fatalf("DocumentName = %q, want %q", gotDocument, runPowerShellDocument)
+	}
+}
+
+func TestRunCommandForTarget_UsesPlatformDocument(t *testing.T) {
+	var gotDocuments []string
+
+	client := &mockSSMRunClient{
+		sendCommandFn: func(_ context.Context, in *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+			gotDocuments = append(gotDocuments, aws.ToString(in.DocumentName))
+			return &ssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-target")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return &ssm.GetCommandInvocationOutput{
+				Status:       types.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}, nil
+		},
+	}
+
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	targets := []TargetInfo{
+		{InstanceID: "i-linux"},
+		{InstanceID: "i-win", Platform: ec2types.PlatformValuesWindows},
+	}
+
+	for _, target := range targets {
+		if _, err := RunCommandForTarget(context.Background(), client, target, []string{"echo ok"}, 30*time.Second); err != nil {
+			t.Fatalf("unexpected error for %s: %v", target.InstanceID, err)
+		}
+	}
+
+	want := []string{runShellDocument, runPowerShellDocument}
+	if len(gotDocuments) != len(want) {
+		t.Fatalf("captured %d documents, want %d", len(gotDocuments), len(want))
+	}
+	for i := range want {
+		if gotDocuments[i] != want[i] {
+			t.Fatalf("DocumentName[%d] = %q, want %q", i, gotDocuments[i], want[i])
+		}
 	}
 }
 

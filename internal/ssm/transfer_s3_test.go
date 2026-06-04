@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
@@ -258,7 +259,7 @@ func TestUploadViaS3_Success(t *testing.T) {
 	result, err := UploadViaS3(
 		context.Background(),
 		mockSSM, mockS3,
-		"i-123",
+		TargetInfo{InstanceID: "i-123"},
 		localFile, "/var/data/payload.tar.gz",
 		S3Location{Bucket: "my-bucket", Prefix: "tmp"},
 		false,
@@ -324,7 +325,7 @@ func TestUploadViaS3_KeepStaging(t *testing.T) {
 	result, err := UploadViaS3(
 		context.Background(),
 		mockSSM, mockS3,
-		"i-keep",
+		TargetInfo{InstanceID: "i-keep"},
 		localFile, "/tmp/file.bin",
 		S3Location{Bucket: "b"},
 		true,
@@ -357,7 +358,7 @@ func TestUploadViaS3_PutObjectFails(t *testing.T) {
 	_, err := UploadViaS3(
 		context.Background(),
 		mockSSM, mockS3,
-		"i-123",
+		TargetInfo{InstanceID: "i-123"},
 		localFile, "/tmp/file.txt",
 		S3Location{Bucket: "b"},
 		false,
@@ -388,7 +389,7 @@ func TestUploadViaS3_RemoteCommandFails_LeavesStaging(t *testing.T) {
 	_, err := UploadViaS3(
 		context.Background(),
 		mockSSM, mockS3,
-		"i-fail",
+		TargetInfo{InstanceID: "i-fail"},
 		localFile, "/tmp/file.txt",
 		S3Location{Bucket: "b"},
 		false,
@@ -423,7 +424,7 @@ func TestDownloadViaS3_Success(t *testing.T) {
 	result, err := DownloadViaS3(
 		context.Background(),
 		mockSSM, mockS3,
-		"i-456",
+		TargetInfo{InstanceID: "i-456"},
 		"/var/log/app.log", localFile,
 		S3Location{Bucket: "my-bucket", Prefix: "tmp"},
 		false,
@@ -480,7 +481,7 @@ func TestDownloadViaS3_KeepStaging(t *testing.T) {
 	result, err := DownloadViaS3(
 		context.Background(),
 		mockSSM, mockS3,
-		"i-keep",
+		TargetInfo{InstanceID: "i-keep"},
 		"/remote/file.log", localFile,
 		S3Location{Bucket: "b"},
 		true,
@@ -510,7 +511,7 @@ func TestDownloadViaS3_RemotePushFails(t *testing.T) {
 	_, err := DownloadViaS3(
 		context.Background(),
 		mockSSM, mockS3,
-		"i-fail",
+		TargetInfo{InstanceID: "i-fail"},
 		"/missing.log", localFile,
 		S3Location{Bucket: "b"},
 		false,
@@ -542,7 +543,7 @@ func TestDownloadViaS3_GetObjectFails(t *testing.T) {
 	_, err := DownloadViaS3(
 		context.Background(),
 		mockSSM, mockS3,
-		"i-x",
+		TargetInfo{InstanceID: "i-x"},
 		"/remote/file.log", localFile,
 		S3Location{Bucket: "b"},
 		false,
@@ -553,5 +554,75 @@ func TestDownloadViaS3_GetObjectFails(t *testing.T) {
 	}
 	if mockS3.deleteCalls != 0 {
 		t.Errorf("expected to leave staging for diagnostics on Get failure, got %d delete calls", mockS3.deleteCalls)
+	}
+}
+
+func TestUploadViaS3_WindowsUsesPowerShellAndNormalizesPath(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	withFixedStagingKey(t, "tmp/ssmctl-win-file.zip")
+
+	localFile := filepath.Join(t.TempDir(), "file.zip")
+	if err := os.WriteFile(localFile, []byte("payload"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	mockS3 := newMockS3Client()
+	var ranCmds []string
+	mockSSM := ssmRunCapturer(&ranCmds, 0, "")
+
+	target := TargetInfo{InstanceID: "i-win", Platform: ec2types.PlatformValuesWindows}
+	if _, err := UploadViaS3(
+		context.Background(),
+		mockSSM, mockS3,
+		target,
+		localFile, `C:/Artifacts/build/file.zip`,
+		S3Location{Bucket: "my-bucket", Prefix: "tmp"},
+		false,
+		30*time.Second,
+	); err != nil {
+		t.Fatalf("UploadViaS3 error: %v", err)
+	}
+
+	if len(ranCmds) != 1 {
+		t.Fatalf("expected 1 SSM command, got %d", len(ranCmds))
+	}
+	if !strings.Contains(ranCmds[0], "New-Item -ItemType Directory -Force") || !strings.Contains(ranCmds[0], `C:\Artifacts\build\file.zip`) {
+		t.Fatalf("unexpected Windows S3 upload command: %q", ranCmds[0])
+	}
+}
+
+func TestDownloadViaS3_WindowsUsesPowerShellAndWindowsBasename(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	withFixedStagingKey(t, "tmp/ssmctl-win-app.log")
+
+	mockS3 := newMockS3Client()
+	mockS3.objects["my-bucket/tmp/ssmctl-win-app.log"] = []byte("LOG")
+
+	var ranCmds []string
+	mockSSM := ssmRunCapturer(&ranCmds, 0, "")
+
+	localFile := filepath.Join(t.TempDir(), "out.log")
+	target := TargetInfo{InstanceID: "i-win", Platform: ec2types.PlatformValuesWindows}
+	if _, err := DownloadViaS3(
+		context.Background(),
+		mockSSM, mockS3,
+		target,
+		`C:\Logs\app.log`, localFile,
+		S3Location{Bucket: "my-bucket", Prefix: "tmp"},
+		false,
+		30*time.Second,
+	); err != nil {
+		t.Fatalf("DownloadViaS3 error: %v", err)
+	}
+
+	if got := mockS3.capturedGets[0]; got != "my-bucket/tmp/ssmctl-win-app.log" {
+		t.Fatalf("GetObject target = %q, want %q", got, "my-bucket/tmp/ssmctl-win-app.log")
+	}
+	if len(ranCmds) != 1 || !strings.Contains(ranCmds[0], `C:\Logs\app.log`) {
+		t.Fatalf("unexpected Windows S3 download command: %#v", ranCmds)
 	}
 }

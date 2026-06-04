@@ -38,13 +38,37 @@ type Result struct {
 	ExitCode int
 }
 
+const (
+	runShellDocument      = "AWS-RunShellScript"
+	runPowerShellDocument = "AWS-RunPowerShellScript"
+)
+
 // RunCommand sends a command to an EC2 instance via Systems Manager and waits
 // for completion. It polls for the command invocation status until the command
 // finishes or the context is cancelled. Returns the command output and exit code.
 func RunCommand(ctx context.Context, client RunAPI, instanceID string, command []string, timeout time.Duration) (*Result, error) {
+	return runCommandWithDocument(ctx, client, instanceID, runShellDocument, command, timeout)
+}
+
+// RunPowerShellCommand sends a command to a Windows EC2 instance via Systems
+// Manager using the AWS-RunPowerShellScript document.
+func RunPowerShellCommand(ctx context.Context, client RunAPI, instanceID string, command []string, timeout time.Duration) (*Result, error) {
+	return runCommandWithDocument(ctx, client, instanceID, runPowerShellDocument, command, timeout)
+}
+
+// RunCommandForTarget chooses the appropriate SSM Run Command document for the
+// resolved target platform.
+func RunCommandForTarget(ctx context.Context, client RunAPI, target TargetInfo, command []string, timeout time.Duration) (*Result, error) {
+	if target.IsWindows() {
+		return RunPowerShellCommand(ctx, client, target.InstanceID, command, timeout)
+	}
+	return RunCommand(ctx, client, target.InstanceID, command, timeout)
+}
+
+func runCommandWithDocument(ctx context.Context, client RunAPI, instanceID, documentName string, command []string, timeout time.Duration) (*Result, error) {
 	resp, err := client.SendCommand(ctx, &ssm.SendCommandInput{
 		InstanceIds:  []string{instanceID},
-		DocumentName: aws.String("AWS-RunShellScript"),
+		DocumentName: aws.String(documentName),
 		Parameters: map[string][]string{
 			"commands": command,
 		},

@@ -11,8 +11,12 @@ import (
 )
 
 const (
-	tempFile  = "/tmp/._ssmctl_transfer"
-	chunkSize = 3072
+	// These scratch paths are shared per-instance, so concurrent transfers to
+	// the same target can race and clobber each other. Keep only one active
+	// in-band transfer per instance until we move to unique temp paths.
+	unixTempFile    = "/tmp/._ssmctl_transfer"
+	windowsTempFile = `C:\Windows\Temp\._ssmctl_transfer`
+	chunkSize       = 3072
 )
 
 // TransferResult contains the summary of a completed file transfer operation.
@@ -55,15 +59,22 @@ func ParseArg(s string) (instance, path string, isRemote bool) {
 // Safety note: base64-encoded chunks are passed to the remote shell with
 // heredoc. The 'EOF' delimiter is single-quoted, which prevents shell
 // interpretation of any characters in the chunk (i.e., +, /, =).
-func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePath string, timeout time.Duration) (*TransferResult, error) {
+func Upload(ctx context.Context, client RunAPI, target TargetInfo, localPath, remotePath string, timeout time.Duration) (*TransferResult, error) {
 	data, err := os.ReadFile(localPath) // #nosec G304 -- localPath is a user-supplied CLI argument, path traversal is intentional
 	if err != nil {
 		return nil, fmt.Errorf("failed to read local file: %w", err)
 	}
 
 	encoded := base64.StdEncoding.EncodeToString(data)
+	tempFile := tempFileForTarget(target)
 
-	init, err := RunCommand(ctx, client, instanceID, []string{fmt.Sprintf("printf '' > %s", tempFile)}, timeout)
+	initCmd := fmt.Sprintf("printf '' > %s", tempFile)
+	if target.IsWindows() {
+		remotePath = normalizeWindowsPath(remotePath)
+		initCmd = fmt.Sprintf("[System.IO.File]::WriteAllBytes(%s, [byte[]]@())", powerShellQuote(tempFile))
+	}
+
+	init, err := RunCommandForTarget(ctx, client, target, []string{initCmd}, timeout)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialise transfer file: %w", err)
@@ -80,17 +91,23 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 		}
 		chunk := encoded[i:end]
 
+		command := fmt.Sprintf(
+			"cat << 'EOF' | base64 -d >> %s\n%s\nEOF",
+			tempFile,
+			chunk,
+		)
+		if target.IsWindows() {
+			command = fmt.Sprintf(
+				"$bytes = [System.Convert]::FromBase64String(%s); $stream = [System.IO.File]::Open(%s, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None); try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }",
+				powerShellQuote(chunk),
+				powerShellQuote(tempFile),
+			)
+		}
+
 		// Using heredoc with single-quoted EOF delimiter for safe base64
 		// chunk embedding to prevent interpretation of special characters
 		// such as: +, /, =.
-		result, err := RunCommand(ctx, client, instanceID,
-			[]string{fmt.Sprintf(
-				"cat << 'EOF' | base64 -d >> %s\n%s\nEOF",
-				tempFile,
-				chunk,
-			)},
-			timeout,
-		)
+		result, err := RunCommandForTarget(ctx, client, target, []string{command}, timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to send chunk: %w", err)
 		}
@@ -100,11 +117,16 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 		chunks++
 	}
 
-	dir := path.Dir(remotePath)
-	result, err := RunCommand(ctx, client, instanceID,
-		[]string{fmt.Sprintf("mkdir -p %s && mv %s %s", dir, tempFile, remotePath)},
-		timeout,
-	)
+	finaliseCmd := fmt.Sprintf("mkdir -p %s && mv %s %s", path.Dir(remotePath), tempFile, remotePath)
+	if target.IsWindows() {
+		finaliseCmd = fmt.Sprintf(
+			"$destination = %s; $dir = [System.IO.Path]::GetDirectoryName($destination); if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }; Move-Item -Force -LiteralPath %s -Destination $destination",
+			powerShellQuote(remotePath),
+			powerShellQuote(tempFile),
+		)
+	}
+
+	result, err := RunCommandForTarget(ctx, client, target, []string{finaliseCmd}, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to move file to destination: %w", err)
 	}
@@ -115,7 +137,7 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 	return &TransferResult{
 		Direction:   "upload",
 		Source:      localPath,
-		Destination: instanceID + ":" + remotePath,
+		Destination: target.InstanceID + ":" + remotePath,
 		Bytes:       int64(len(data)),
 		Chunks:      chunks,
 	}, nil
@@ -123,11 +145,14 @@ func Upload(ctx context.Context, client RunAPI, instanceID, localPath, remotePat
 
 // Download copies a remote file to a local path via SSM.
 // Practical limit: ~36KB due to SSM stdout truncation.
-func Download(ctx context.Context, client RunAPI, instanceID, remotePath, localPath string, timeout time.Duration) (*TransferResult, error) {
-	result, err := RunCommand(ctx, client, instanceID,
-		[]string{fmt.Sprintf("cat %s | base64", remotePath)},
-		timeout,
-	)
+func Download(ctx context.Context, client RunAPI, target TargetInfo, remotePath, localPath string, timeout time.Duration) (*TransferResult, error) {
+	command := fmt.Sprintf("cat %s | base64", remotePath)
+	if target.IsWindows() {
+		remotePath = normalizeWindowsPath(remotePath)
+		command = fmt.Sprintf("[System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes(%s))", powerShellQuote(remotePath))
+	}
+
+	result, err := RunCommandForTarget(ctx, client, target, []string{command}, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read remote file: %w", err)
 	}
@@ -146,8 +171,19 @@ func Download(ctx context.Context, client RunAPI, instanceID, remotePath, localP
 
 	return &TransferResult{
 		Direction:   "download",
-		Source:      instanceID + ":" + remotePath,
+		Source:      target.InstanceID + ":" + remotePath,
 		Destination: localPath,
 		Bytes:       int64(len(data)),
 	}, nil
+}
+
+func tempFileForTarget(target TargetInfo) string {
+	if target.IsWindows() {
+		return windowsTempFile
+	}
+	return unixTempFile
+}
+
+func normalizeWindowsPath(p string) string {
+	return strings.ReplaceAll(p, "/", `\`)
 }

@@ -110,7 +110,7 @@ func UploadViaS3(
 	ctx context.Context,
 	ssmClient RunAPI,
 	s3Client S3API,
-	instanceID string,
+	target TargetInfo,
 	localPath, remotePath string,
 	staging S3Location,
 	keepStaging bool,
@@ -150,7 +150,16 @@ func UploadViaS3(
 		shellQuote(remotePath),
 	)
 
-	result, runErr := RunCommand(ctx, ssmClient, instanceID, []string{pullCmd}, timeout)
+	if target.IsWindows() {
+		remotePath = normalizeWindowsPath(remotePath)
+		pullCmd = fmt.Sprintf(
+			"$destination = %s; $dir = [System.IO.Path]::GetDirectoryName($destination); if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }; aws s3 cp %s $destination",
+			powerShellQuote(remotePath),
+			powerShellQuote(stagedURL),
+		)
+	}
+
+	result, runErr := RunCommandForTarget(ctx, ssmClient, target, []string{pullCmd}, timeout)
 	cleanupErr := maybeCleanupStagingObject(ctx, s3Client, staging.Bucket, key, keepStaging, runErr == nil && result != nil && result.ExitCode == 0)
 
 	if runErr != nil {
@@ -166,7 +175,7 @@ func UploadViaS3(
 	return &TransferResult{
 		Direction:   "upload",
 		Source:      localPath,
-		Destination: instanceID + ":" + remotePath,
+		Destination: target.InstanceID + ":" + remotePath,
 		Bytes:       stat.Size(),
 		Via:         "s3",
 		StagingURL:  stagedURL,
@@ -184,13 +193,17 @@ func DownloadViaS3(
 	ctx context.Context,
 	ssmClient RunAPI,
 	s3Client S3API,
-	instanceID string,
+	target TargetInfo,
 	remotePath, localPath string,
 	staging S3Location,
 	keepStaging bool,
 	timeout time.Duration,
 ) (*TransferResult, error) {
-	key, err := stagingKeyFunc(staging.Prefix, path.Base(remotePath))
+	// Derive the staging basename from the original user path before any
+	// Windows-only normalization. remoteBaseName handles backslash conversion
+	// itself, so keeping the raw path here avoids coupling key naming to the
+	// later command-string rewrite.
+	key, err := stagingKeyFunc(staging.Prefix, remoteBaseName(target, remotePath))
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +215,16 @@ func DownloadViaS3(
 		shellQuote(stagedURL),
 	)
 
-	pushed, runErr := RunCommand(ctx, ssmClient, instanceID, []string{pushCmd}, timeout)
+	if target.IsWindows() {
+		remotePath = normalizeWindowsPath(remotePath)
+		pushCmd = fmt.Sprintf(
+			"$source = %s; aws s3 cp $source %s",
+			powerShellQuote(remotePath),
+			powerShellQuote(stagedURL),
+		)
+	}
+
+	pushed, runErr := RunCommandForTarget(ctx, ssmClient, target, []string{pushCmd}, timeout)
 	if runErr != nil {
 		return nil, fmt.Errorf("failed to push remote file to S3: %w", runErr)
 	}
@@ -223,7 +245,7 @@ func DownloadViaS3(
 
 	return &TransferResult{
 		Direction:   "download",
-		Source:      instanceID + ":" + remotePath,
+		Source:      target.InstanceID + ":" + remotePath,
 		Destination: localPath,
 		Bytes:       bytes,
 		Via:         "s3",
@@ -255,6 +277,13 @@ func fetchStagedObject(ctx context.Context, s3Client S3API, bucket, key, localPa
 	return n, nil
 }
 
+func remoteBaseName(target TargetInfo, remotePath string) string {
+	if target.IsWindows() {
+		return path.Base(strings.ReplaceAll(remotePath, `\`, "/"))
+	}
+	return path.Base(remotePath)
+}
+
 // maybeCleanupStagingObject deletes the staging object unless keepStaging is
 // true. It is only invoked after the caller knows whether the prior step
 // succeeded so that failed transfers can choose to leave staging artefacts in
@@ -273,16 +302,4 @@ func maybeCleanupStagingObject(ctx context.Context, s3Client S3API, bucket, key 
 		return fmt.Errorf("failed to delete staging object s3://%s/%s: %w", bucket, key, err)
 	}
 	return nil
-}
-
-// shellQuote wraps s in single quotes for safe inclusion inside a POSIX shell
-// command, escaping any embedded single quotes.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// ShellQuote is the exported form of shellQuote, provided for use by the
-// benchmarks package.
-func ShellQuote(s string) string {
-	return shellQuote(s)
 }

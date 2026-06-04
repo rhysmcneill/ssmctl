@@ -134,7 +134,7 @@ ssmctl run <target> -- <command> [args...]
 
 The `--` separator is required. Stdout and stderr are streamed to your terminal. The remote exit code is propagated.
 
-> **Note:** `run` targets Linux/macOS instances only. It uses `AWS-RunShellScript` internally. Windows targets require `AWS-RunPowerShellScript`, which is not yet supported.
+`run` uses `AWS-RunShellScript` for Linux/macOS targets and `AWS-RunPowerShellScript` for Windows targets.
 
 ### Flags
 
@@ -157,11 +157,14 @@ ssmctl run web-1 -t 5m -- /opt/app/migrate.sh
 
 # Capture as JSON for scripting
 ssmctl run web-1 --output json -- whoami
+
+# Run a PowerShell command on a Windows instance
+ssmctl run win-app-1 -- Get-Process
 ```
 
 ### Required IAM permissions
 
-- `ssm:SendCommand` with `AWS-RunShellScript`
+- `ssm:SendCommand` with `AWS-RunShellScript` and/or `AWS-RunPowerShellScript`
 - `ssm:GetCommandInvocation`
 
 ---
@@ -180,7 +183,7 @@ ssmctl cp <target>:<remote-path> <local-path>
 
 Remote paths use the `<target>:/path` syntax, where `<target>` is an instance ID or Name tag.
 
-> **Note:** `cp` targets Linux/macOS instances only. Transfers use `cat` and `base64` under the hood. Windows targets are not currently supported.
+Linux/macOS targets use POSIX shell utilities under the hood. Windows targets use PowerShell for in-band transfers. The S3-backed path requires the AWS CLI on the instance.
 
 ### Size limits (in-band SSM)
 
@@ -199,6 +202,9 @@ ssmctl cp ./nginx.conf web-1:/etc/nginx/nginx.conf
 
 # Download a log file
 ssmctl cp web-1:/var/log/app.log ./app.log
+
+# Upload to a Windows target
+ssmctl cp .\appsettings.json win-app-1:C:\Temp\appsettings.json
 ```
 
 **Windows host — drive-letter paths are supported:**
@@ -213,7 +219,7 @@ ssmctl cp web-1:/var/log/app.log C:\Users\Admin\logs\app.log
 
 ### Required IAM permissions
 
-- `ssm:SendCommand` with `AWS-RunShellScript`
+- `ssm:SendCommand` with `AWS-RunShellScript` and/or `AWS-RunPowerShellScript`
 - `ssm:GetCommandInvocation`
 
 ---
@@ -351,7 +357,9 @@ If a Name tag matches more than one running instance, `ssmctl` returns an error 
 | `list` | Supported | Supported |
 | `connect` | Supported | Supported |
 | `forward` | Supported | Supported |
-| `run` | Supported | Not supported — requires `AWS-RunPowerShellScript` |
-| `cp` | Supported | Not supported — requires POSIX utilities on the instance |
+| `run` | Supported | Supported |
+| `cp` | Supported | Supported |
 | `version` | Supported | Supported |
 | `completion` | Supported | Supported |
+
+

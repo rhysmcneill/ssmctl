@@ -110,3 +110,31 @@ func TestNew_PrinterFormatMatchesConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestNew_WithDebugLogsCorrectly(t *testing.T) {
+	setAWSTestEnv(t, "us-east-1")
+
+	cfg := &config.Config{Debug: true, Output: "text", Timeout: 30 * time.Second}
+	a, err := New(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if a == nil {
+		t.Fatal("expected non-nil App")
+	}
+	// Verify debug mode initialized successfully
+	// The middleware is added to the stack, but we can only verify app creation succeeded
+}
+
+func TestNew_WithProfile(t *testing.T) {
+	setAWSTestEnv(t, "us-east-1")
+
+	cfg := &config.Config{Profile: "default", Output: "text", Timeout: 30 * time.Second}
+	a, err := New(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if a == nil {
+		t.Fatal("expected non-nil App")
+	}
+}

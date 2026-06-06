@@ -9,14 +9,11 @@ import (
 	"log"
 	"os"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	awscfg "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	"github.com/aws/smithy-go/middleware"
 
-	awsmiddleware "github.com/rhysmcneill/ssmctl/internal/aws"
 	"github.com/rhysmcneill/ssmctl/internal/config"
 	"github.com/rhysmcneill/ssmctl/internal/output"
 	ssmlib "github.com/rhysmcneill/ssmctl/internal/ssm"
@@ -59,17 +56,6 @@ func New(cfg *config.Config) (*App, error) {
 
 	// If the debug flag is set, log AWS SDK initialisation details.
 	if cfg.Debug {
-		awsCfg.ClientLogMode = aws.LogSigning | aws.LogRequest | aws.LogResponseWithBody
-		awsCfg.APIOptions = append(awsCfg.APIOptions, func(stack *middleware.Stack) error {
-			return stack.Serialize.Insert(
-				middleware.SerializeMiddlewareFunc("RedactingLogger", func(mwCtx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler) (middleware.SerializeOutput, middleware.Metadata, error) {
-					handler := awsmiddleware.RedactingLogger()(next)
-					return handler.HandleSerialize(mwCtx, in)
-				}),
-				"OperationSerializer",
-				middleware.Before,
-			)
-		})
 
 		debugLog := log.New(os.Stderr, "[DEBUG] ", log.LstdFlags)
 		debugLog.Println("AWS SDK initialized")

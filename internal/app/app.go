@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	awscfg "github.com/aws/aws-sdk-go-v2/config"
@@ -15,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 
 	"github.com/rhysmcneill/ssmctl/internal/config"
+	"github.com/rhysmcneill/ssmctl/internal/middleware"
 	"github.com/rhysmcneill/ssmctl/internal/output"
 	ssmlib "github.com/rhysmcneill/ssmctl/internal/ssm"
 )
@@ -63,6 +65,12 @@ func New(cfg *config.Config) (*App, error) {
 		debugLog.Printf("Region: %s\n", awsCfg.Region)
 		debugLog.Printf("Output: %s\n", cfg.Output)
 		debugLog.Printf("Timeout: %v\n", cfg.Timeout)
+		awsCfg.HTTPClient = &http.Client{
+			Transport: &middleware.RedactingTransport{
+				Wrapped: http.DefaultTransport,
+				Log:     debugLog,
+			},
+		}
 	}
 
 	// Sync the resolved region back onto cfg so commands that need to pass the

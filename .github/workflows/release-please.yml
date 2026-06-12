@@ -74,15 +74,7 @@ jobs:
         shell: bash
         id: hash
         run: |
-          cd bin
-          sha256sum \
-            ssmctl-darwin-amd64 \
-            ssmctl-darwin-arm64 \
-            ssmctl-linux-amd64 \
-            ssmctl-linux-arm64 \
-            ssmctl-windows-amd64.exe \
-            ssmctl-windows-arm64.exe | base64 -w0 > hashes.txt
-          echo "hashes=$(cat hashes.txt)" >> "$GITHUB_OUTPUT"
+          echo "hashes=$(base64 -w0 < bin/checksums.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Verify checksum manifest
         run: |

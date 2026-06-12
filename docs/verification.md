@@ -22,9 +22,9 @@ brew install slsa-verifier
 slsa-verifier verify-artifact ssmctl-linux-amd64 \
   --provenance-path ssmctl-linux-amd64.intoto.jsonl \
   --source-uri github.com/rhysmcneill/ssmctl \
-  --source-tag v1.0.0
+  --source-tag vX.Y.Z
 ```
 
-Replace v1.0.0.0 with the version you have downloaded.
+Replace vX.Y.Z with the version you have downloaded.
 
 For additional and more in-depth explanation check out slsa-verifier's [documentation](https://github.com/slsa-framework/slsa-verifier/blob/main/README.md#verification-for-github-builders)

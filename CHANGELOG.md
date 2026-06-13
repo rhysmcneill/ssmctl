@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.0](https://github.com/rhysmcneill/ssmctl/compare/v2.0.2...v2.1.0) (2026-06-13)
+
+
+### Features
+
+* **debug:** added middleware to redact sensitive headers. ([#109](https://github.com/rhysmcneill/ssmctl/issues/109)) ([4bc9934](https://github.com/rhysmcneill/ssmctl/commit/4bc993424e39c11885fc3b35a98a696a4790882c))
+* **windows:** support Windows targets for run and cp ([#100](https://github.com/rhysmcneill/ssmctl/issues/100)) ([3811af7](https://github.com/rhysmcneill/ssmctl/commit/3811af79d8dc1ff6abaa1ae759e6bb16e0a382a6))
+
 ## [2.0.2](https://github.com/rhysmcneill/ssmctl/compare/v2.0.1...v2.0.2) (2026-05-27)
 
 

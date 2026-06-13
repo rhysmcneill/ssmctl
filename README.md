@@ -227,7 +227,8 @@ ssmctl list
 | | |
 |--|--|
 | [Command reference](docs/commands.md) | All commands, flags, and examples |
-| [Installation guide](docs/installation.md) | Setup, prerequisites, and verification |
+| [Installation guide](docs/installation.md) | Setup and prerequisites |
+| [Verification guide](docs/verification.md) | SLSA Attestation verification steps |
 | [IAM reference](docs/iam.md) | Exact permissions per command with copy-paste policies |
 | [Contributing](CONTRIBUTING.md) | How to build, test, and submit changes |
 

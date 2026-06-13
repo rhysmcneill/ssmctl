@@ -31,6 +31,8 @@ jobs:
   build-and-release:
     name: Build and Release
     needs: release-please
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
     if: |
       github.repository == 'rhysmcneill/ssmctl' && (
         github.event_name == 'workflow_dispatch' ||
@@ -67,6 +69,12 @@ jobs:
             ssmctl-linux-arm64 \
             ssmctl-windows-amd64.exe \
             ssmctl-windows-arm64.exe > checksums.txt
+
+      - name: Generate hashes # added for slsa generator
+        shell: bash
+        id: hash
+        run: |
+          echo "hashes=$(base64 -w0 < bin/checksums.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Verify checksum manifest
         run: |
@@ -132,3 +140,15 @@ jobs:
           git add Formula/ssmctl.rb
           git commit -m "chore: bump ssmctl to v${VERSION}"
           git push
+
+  provenance:
+    name: Generate SLSA Provenance
+    needs: [build-and-release]
+    permissions:
+      actions: read # "Needed for detection of GitHub Actions environment"
+      id-token: write # "Needed for provenance signing and ID"
+      contents: write # "Needed for release uploads"
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: "${{ needs.build-and-release.outputs.hashes }}"
+      upload-assets: true

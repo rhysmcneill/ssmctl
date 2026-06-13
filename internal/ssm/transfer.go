@@ -48,7 +48,13 @@ func ParseArg(s string) (instance, path string, isRemote bool) {
 		return "", s, false
 	}
 	if idx := strings.Index(s, ":"); idx > 0 {
-		return s[:idx], s[idx+1:], true
+		inst := s[:idx]
+		p := s[idx+1:]
+
+		if p == "" {
+			return "", s, false
+		}
+		return inst, p, true
 	}
 	return "", s, false
 }

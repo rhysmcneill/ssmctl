@@ -1,6 +1,6 @@
 # Security Policy
 
-This document outlines the scurity policies for `ssmctl`.
+This document outlines the security policies for `ssmctl`.
 
 ## Supported versions
 
@@ -16,13 +16,21 @@ It is highly recommended to use the latest release.
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability, regardless of severity, **do not open a public issue**. You can communicate your findings with the lead developer via email at `rhysmcneill7@hotmail.co.uk`. Include as much detail as you deem necessary but at minimum, include the following:
+If you discover a security vulnerability, **please report it privately** using GitHub's Security Advisory feature. This allows us to address the issue before public disclosure.
 
-- A description of the vulnerability.
-- Steps to reproduce the issue.
-- Relevant code snippets or configurations.
+**To report a vulnerability:**
 
-We will work diligently to acknowledge reports within at least 48 hours.
+1. Navigate to the [Security tab](../../security/advisories) in this repository.
+2. Click **"Report a vulnerability"**.
+3. Provide a clear description including:
+   - A description of the vulnerability
+   - Steps to reproduce the issue
+   - Relevant code snippets or configurations
+   - Potential impact assessment
+
+Alternatively, if you prefer direct communication, you can email the lead developer at `rhysmcneill7@hotmail.co.uk` with the subject line "Security Vulnerability Report - ssmctl".
+
+We will acknowledge reports within 48 hours and keep you informed about the progress towards a fix.
 
 ## Disclosure policy
 

@@ -101,6 +101,7 @@ jobs:
     name: Release and Update Homebrew
     permissions:
       contents: write
+      actions: read
     needs: build
     runs-on: ubuntu-latest
     steps:

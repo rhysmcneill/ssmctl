@@ -1,8 +1,9 @@
 package ssm
 
 import (
-	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
 func FuzzRemoteBaseName(f *testing.F) {

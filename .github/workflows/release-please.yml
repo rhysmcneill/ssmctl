@@ -182,3 +182,4 @@ jobs:
     with:
       base64-subjects: "${{ needs.build.outputs.hashes }}"
       upload-assets: true
+      upload-tag-name: "${{ needs.build.outputs.tag_name }}"

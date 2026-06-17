@@ -43,9 +43,9 @@ func FuzzDownloadBase64Decoding(f *testing.F) {
 			return
 		}
 
-		// Invariant: TrimSpace removes leading/trailing whitespace correctly
-		if strings.TrimSpace(encoded) != trimmed {
-			t.Errorf("FuzzDownloadBase64Decoding: TrimSpace failed for %q", encoded)
+		// decoding failed — ensure we got an error back
+		if err == nil {
+			t.Errorf("FuzzDownloadBase64Decoding: expected decode error for %q but got nil", encoded)
 		}
 	})
 }

@@ -100,7 +100,7 @@ func TestParseRemoteFlag_DottedHostname(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if host != "db.example.com" {
-		t.Errorf("host = %q, want %q", host, "a:b")
+		t.Errorf("host = %q, want %q", host, "db.example.com")
 	}
 	if port != 5432 {
 		t.Errorf("port = %d, want 5432", port)

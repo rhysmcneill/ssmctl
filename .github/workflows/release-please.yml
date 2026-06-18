@@ -9,13 +9,14 @@ on:
         description: 'Release tag to build and publish (e.g. v2.0.0)'
         required: true
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: read-all
 
 jobs:
   release-please:
     name: Release Please
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -28,11 +29,12 @@ jobs:
           config-file: tools/release/release-please-config.json
           manifest-file: tools/release/.release-please-manifest.json
 
-  build-and-release:
-    name: Build and Release
+  build:
+    name: Build
     needs: release-please
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
+      tag_name: ${{ steps.version.outputs.TAG }}
     if: |
       github.repository == 'rhysmcneill/ssmctl' && (
         github.event_name == 'workflow_dispatch' ||
@@ -88,6 +90,34 @@ jobs:
             ssmctl-windows-arm64.exe; do
             grep -Eq "^[0-9a-f]{64}[[:space:]]+${file}$" checksums.txt
           done
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binaries
+          path: bin/
+          retention-days: 1
+
+  release:
+    name: Release and Update Homebrew
+    permissions:
+      contents: write
+      actions: read
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Derive version from release tag
+        id: version
+        run: |
+          TAG="${{ needs.build.outputs.tag_name }}"
+          test -n "$TAG"
+          echo "TAG=${TAG}" >> $GITHUB_OUTPUT
+          echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: binaries
+          path: bin/
 
       - name: Upload release artifacts
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v2.6.1
@@ -143,12 +173,13 @@ jobs:
 
   provenance:
     name: Generate SLSA Provenance
-    needs: [build-and-release]
+    needs: [build, release]
     permissions:
       actions: read # "Needed for detection of GitHub Actions environment"
       id-token: write # "Needed for provenance signing and ID"
       contents: write # "Needed for release uploads"
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
-      base64-subjects: "${{ needs.build-and-release.outputs.hashes }}"
+      base64-subjects: "${{ needs.build.outputs.hashes }}"
       upload-assets: true
+      upload-tag-name: "${{ needs.build.outputs.tag_name }}"

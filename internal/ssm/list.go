@@ -40,6 +40,10 @@ func ListInstances(ctx context.Context, ssmClient ListAPI, ec2Client EC2Describe
 
 	names := fetchNames(ctx, ec2Client, items)
 
+	return filterInstances(items, names, filter, platform), nil
+}
+
+func filterInstances(items []ssmtypes.InstanceInformation, names map[string]string, filter, platform string) []InstanceInfo {
 	var result []InstanceInfo
 	for _, item := range items {
 		id := aws.ToString(item.InstanceId)
@@ -62,10 +66,9 @@ func ListInstances(ctx context.Context, ssmClient ListAPI, ec2Client EC2Describe
 			Status:       status,
 		})
 	}
+	return result
 
-	return result, nil
 }
-
 func describeAllInstances(ctx context.Context, ssmClient ListAPI) ([]ssmtypes.InstanceInformation, error) {
 	var items []ssmtypes.InstanceInformation
 	var nextToken *string

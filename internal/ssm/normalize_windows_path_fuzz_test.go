@@ -1,6 +1,9 @@
 package ssm
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func FuzzNormalizeWindowsPath(f *testing.F) {
 	testcases := []string{
@@ -41,20 +44,15 @@ func FuzzNormalizeWindowsPath(f *testing.F) {
 		}
 
 		// Invariant: all backslashes from input should be preserved
-		inputBackslashes := 0
-		for i := 0; i < len(input); i++ {
-			if input[i] == '\\' {
-				inputBackslashes++
-			}
+		inputBackslashes := strings.Count(input, "\\")
+		resultBackslashes := strings.Count(result, "\\")
+		inputForwardSlashes := strings.Count(input, "/")
+
+		// each / should become \, existing \ should be preserved
+		expectedBackslashes := inputBackslashes + inputForwardSlashes
+		if resultBackslashes != expectedBackslashes {
+			t.Errorf("normalizeWindowsPath(%q): expected %d backslashes, got %d", input, expectedBackslashes, resultBackslashes)
 		}
-		resultBackslashes := 0
-		for i := 0; i < len(result); i++ {
-			if result[i] == '\\' {
-				resultBackslashes++
-			}
-		}
-		if resultBackslashes < inputBackslashes {
-			t.Errorf("normalizeWindowsPath(%q): lost backslashes", input)
-		}
+
 	})
 }

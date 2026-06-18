@@ -21,31 +21,7 @@ func FuzzListInstancesFiltering(f *testing.F) {
 		items := generateSSMInstances()
 		names := generateNameMap()
 
-		var result []InstanceInfo
-		for _, item := range items {
-			id := aws.ToString(item.InstanceId)
-			name := names[id]
-			platformStr := string(item.PlatformType)
-			status := string(item.PingStatus)
-
-			// Apply name filter
-			if nameFilter != "" && !strings.Contains(strings.ToLower(name), strings.ToLower(nameFilter)) {
-				continue
-			}
-
-			// Apply platform filter
-			if platformFilter != "" && !strings.EqualFold(platformStr, platformFilter) {
-				continue
-			}
-
-			result = append(result, InstanceInfo{
-				InstanceID:   id,
-				Name:         name,
-				Platform:     platformStr,
-				AgentVersion: aws.ToString(item.AgentVersion),
-				Status:       status,
-			})
-		}
+		result := filterInstances(items, names, nameFilter, platformFilter)
 
 		// Invariant: if name filter is set, all results contain the filter substring
 		if nameFilter != "" {

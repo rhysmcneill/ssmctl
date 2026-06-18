@@ -1,0 +1,33 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '30 1 * * 1'
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@1a818fd5f97ed0ee9a823421bd5b171add01227f # v4.36.2
+      with:
+        languages: go
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@1a818fd5f97ed0ee9a823421bd5b171add01227f # v4.36.2
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@1a818fd5f97ed0ee9a823421bd5b171add01227f # v4.36.2

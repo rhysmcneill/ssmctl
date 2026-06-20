@@ -6,6 +6,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+
+	_ "github.com/AdamKorcz/go-118-fuzz-build/testing"
 )
 
 func FuzzListInstancesFiltering(f *testing.F) {

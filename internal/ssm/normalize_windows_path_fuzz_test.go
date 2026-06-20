@@ -3,6 +3,8 @@ package ssm
 import (
 	"strings"
 	"testing"
+
+	_ "github.com/AdamKorcz/go-118-fuzz-build/testing"
 )
 
 func FuzzNormalizeWindowsPath(f *testing.F) {

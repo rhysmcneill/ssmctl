@@ -2,6 +2,8 @@ package ssm
 
 import (
 	"testing"
+
+	_ "github.com/AdamKorcz/go-118-fuzz-build/testing"
 )
 
 func FuzzSanitizeBasename(f *testing.F) {

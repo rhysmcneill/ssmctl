@@ -1,6 +1,10 @@
 package ssm
 
-import "testing"
+import (
+	"testing"
+
+	_ "github.com/AdamKorcz/go-118-fuzz-build/testing"
+)
 
 func FuzzParseS3URL(f *testing.F) {
 	testcases := []string{

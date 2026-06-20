@@ -1,11 +1,12 @@
 package ssm
 
 import (
+	"testing"
+
 	_ "github.com/AdamKorcz/go-118-fuzz-build/testing"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"testing"
 )
 
 func FuzzAllInstanceIDs(f *testing.F) {

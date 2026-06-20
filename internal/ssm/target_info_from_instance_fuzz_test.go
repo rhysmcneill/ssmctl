@@ -5,6 +5,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+
+	_ "github.com/AdamKorcz/go-118-fuzz-build/testing"
 )
 
 func FuzzTargetInfoFromInstance(f *testing.F) {

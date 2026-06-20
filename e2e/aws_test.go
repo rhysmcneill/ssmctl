@@ -206,4 +206,3 @@ func TestAWS_Cp_WindowsUploadAndDownloadViaS3(t *testing.T) {
 		t.Errorf("downloaded content = %q, want %q", string(got), content)
 	}
 }
-

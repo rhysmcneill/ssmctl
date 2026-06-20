@@ -29,8 +29,8 @@ func Run() error {
 	opts := &rootOptions{}
 
 	cmd := &cobra.Command{
-		Use:          "ssmctl",
-		Short:        "A lightweight CLI for managing AWS SSM connections, remote command execution, and file transfers",
+		Use:           "ssmctl",
+		Short:         "A lightweight CLI for managing AWS SSM connections, remote command execution, and file transfers",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {

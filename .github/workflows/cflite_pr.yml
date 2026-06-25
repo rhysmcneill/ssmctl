@@ -1,0 +1,29 @@
+name: ClusterFuzzLite PR Fuzzing
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions: {}
+
+jobs:
+  PR:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+
+    - name: Run Fuzzers
+      uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1.15.3
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        fuzz-seconds: 600 # Total max execution time (10 minutes) across your targets
+        mode: 'code-change'
+        sanitizer: 'address'
+        language: go

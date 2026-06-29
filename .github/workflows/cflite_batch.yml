@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: write
+      actions: write  # required for ClusterFuzzLite to upload corpus/artifact files
       security-events: write
     strategy:
       fail-fast: false

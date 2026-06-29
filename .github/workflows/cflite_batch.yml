@@ -42,8 +42,9 @@ jobs:
         mode: 'batch'
         sanitizer: ${{ matrix.sanitizer }}
         output-sarif: true
-        # Optional but recommended: For storing certain artifacts from fuzzing.
+        # Optional but recommended: used to download the corpus produced by
+        # batch fuzzing.
         # See later section on "Git repo for storage".
-        storage-repo: https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/MozamilS/ssmctl-cflite-corpus.git
-        storage-repo-branch: main   # Optional. Defaults to "main"
-        storage-repo-branch-coverage: gh-pages  # Optional. Defaults to "gh-pages".
+        # storage-repo: https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/OWNER/STORAGE-REPO-NAME.git
+        # storage-repo-branch: main   # Optional. Defaults to "main"
+        # storage-repo-branch-coverage: gh-pages  # Optional. Defaults to "gh-pages".

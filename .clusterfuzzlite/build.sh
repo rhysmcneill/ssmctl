@@ -22,7 +22,6 @@ while read -r line; do
     count=$((count + 1))
 done < <(find ./internal/ssm -name "*_fuzz_test.go" -type f | xargs grep -E '^func Fuzz[A-Za-z0-9_]+\(')
 
-# Fixed spacing issues here
 if [ "$count" -eq 0 ]; then
   echo "Error: no Fuzz functions found" >&2
   exit 1

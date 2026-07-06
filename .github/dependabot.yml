@@ -18,3 +18,13 @@ updates:
       - ci
     assignees:
       - rhysmcneill
+    groups:
+      codeql:
+        patterns:
+          - "github/codeql-action*"
+      clusterfuzzlite:
+        patterns:
+          - "google/clusterfuzzlite*"
+      actions-cache:
+        patterns:
+          - "actions/cache*"

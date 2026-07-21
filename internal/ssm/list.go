@@ -45,6 +45,7 @@ func ListInstances(ctx context.Context, ssmClient ListAPI, ec2Client EC2Describe
 
 func filterInstances(items []ssmtypes.InstanceInformation, names map[string]string, filter, platform string) []InstanceInfo {
 	var result []InstanceInfo
+	filterLower := strings.ToLower(filter)
 	for _, item := range items {
 		id := aws.ToString(item.InstanceId)
 
@@ -56,7 +57,9 @@ func filterInstances(items []ssmtypes.InstanceInformation, names map[string]stri
 		platformStr := string(item.PlatformType)
 		status := string(item.PingStatus)
 
-		if filter != "" && !strings.Contains(strings.ToLower(name), strings.ToLower(filter)) {
+		if filterLower != "" &&
+			!strings.Contains(strings.ToLower(name), filterLower) &&
+			!strings.Contains(strings.ToLower(id), filterLower) {
 			continue
 		}
 		if platform != "" && !strings.EqualFold(platformStr, platform) {

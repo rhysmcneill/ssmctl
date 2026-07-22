@@ -133,7 +133,9 @@ func UploadWithOptions(ctx context.Context, client RunAPI, target TargetInfo, lo
 		if rawDone > totalBytes {
 			rawDone = totalBytes
 		}
-		reportProgress(opts.Progress, rawDone, totalBytes)
+		if rawDone < totalBytes {
+			reportProgress(opts.Progress, rawDone, totalBytes)
+		}
 	}
 
 	finaliseCmd := fmt.Sprintf("mkdir -p %s && mv %s %s", path.Dir(remotePath), tempFile, remotePath)
@@ -152,6 +154,7 @@ func UploadWithOptions(ctx context.Context, client RunAPI, target TargetInfo, lo
 	if result.ExitCode != 0 {
 		return nil, fmt.Errorf("move command failed: %s", result.Stderr)
 	}
+	reportProgress(opts.Progress, totalBytes, totalBytes)
 
 	return &TransferResult{
 		Direction:   "upload",

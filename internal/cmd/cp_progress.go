@@ -11,7 +11,7 @@ import (
 )
 
 func progressReporter(cmd *cobra.Command, outputFormat, action string) ssmlib.ProgressFunc {
-	if outputFormat == "json" || !isTerminal(cmd.OutOrStdout()) {
+	if outputFormat == "json" || !isCharDevice(cmd.OutOrStdout()) {
 		return nil
 	}
 
@@ -23,14 +23,14 @@ func newProgressWriter(w io.Writer, action string) ssmlib.ProgressFunc {
 	var finished bool
 
 	return func(done, total int64) {
-		if finished || done == lastDone && total == lastTotal {
+		if finished || (done == lastDone && total == lastTotal) {
 			return
 		}
 		lastDone, lastTotal = done, total
 
 		if total >= 0 {
-			percent := int64(100)
-			if total > 0 {
+			percent := int64(0)
+			if done > 0 && total > 0 {
 				percent = done * 100 / total
 			}
 			if percent > 100 {
@@ -48,7 +48,10 @@ func newProgressWriter(w io.Writer, action string) ssmlib.ProgressFunc {
 	}
 }
 
-func isTerminal(w io.Writer) bool {
+// isCharDevice reports whether w is a character device. We use this as a TTY
+// heuristic: in practice cmd.OutOrStdout() is os.Stdout, a character device,
+// when running interactively.
+func isCharDevice(w io.Writer) bool {
 	file, ok := w.(*os.File)
 	if !ok {
 		return false

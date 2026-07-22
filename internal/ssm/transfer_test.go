@@ -145,16 +145,42 @@ func TestUploadWithOptionsReportsProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var events [][2]int64
+	var commands []string
+	client := &mockSSMRunClient{
+		sendCommandFn: func(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+			commands = append(commands, input.Parameters["commands"]...)
+			return &ssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-upload-progress")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return &ssm.GetCommandInvocationOutput{
+				Status:                types.CommandInvocationStatusSuccess,
+				StandardOutputContent: aws.String(""),
+				ResponseCode:          0,
+			}, nil
+		},
+	}
+
+	type progressEvent struct {
+		done         int64
+		total        int64
+		commandsSeen int
+	}
+	var events []progressEvent
 	_, err := UploadWithOptions(
 		context.Background(),
-		alwaysSucceedClient(),
+		client,
 		TargetInfo{InstanceID: "i-123"},
 		localFile,
 		"/tmp/upload.txt",
 		30*time.Second,
 		TransferOptions{Progress: func(done, total int64) {
-			events = append(events, [2]int64{done, total})
+			events = append(events, progressEvent{
+				done:         done,
+				total:        total,
+				commandsSeen: len(commands),
+			})
 		}},
 	)
 	if err != nil {
@@ -163,11 +189,17 @@ func TestUploadWithOptionsReportsProgress(t *testing.T) {
 	if len(events) < 3 {
 		t.Fatalf("progress events = %v, want initial, chunk, and completion events", events)
 	}
-	if events[0] != [2]int64{0, int64(len(content))} {
+	if events[0].done != 0 || events[0].total != int64(len(content)) {
 		t.Fatalf("first progress event = %v, want 0/%d", events[0], len(content))
 	}
-	if got := events[len(events)-1]; got != [2]int64{int64(len(content)), int64(len(content))} {
+	if got := events[len(events)-1]; got.done != int64(len(content)) || got.total != int64(len(content)) {
 		t.Fatalf("final progress event = %v, want %d/%d", got, len(content), len(content))
+	}
+	if got := events[len(events)-1].commandsSeen; got != len(commands) {
+		t.Fatalf("final progress event saw %d commands, want %d", got, len(commands))
+	}
+	if !strings.Contains(commands[len(commands)-1], "mv /tmp/._ssmctl_transfer /tmp/upload.txt") {
+		t.Fatalf("final command = %q, want move to destination", commands[len(commands)-1])
 	}
 }
 

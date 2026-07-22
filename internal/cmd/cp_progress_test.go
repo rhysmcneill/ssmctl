@@ -34,6 +34,17 @@ func TestProgressWriterFormatsByteCounts(t *testing.T) {
 	}
 }
 
+func TestProgressWriterFormatsZeroByteTransfer(t *testing.T) {
+	var buf bytes.Buffer
+	progress := newProgressWriter(&buf, "Uploading")
+
+	progress(0, 0)
+
+	if got, want := buf.String(), "\rUploading ... 0 B / 0 B (0%)\n"; got != want {
+		t.Fatalf("progress output = %q, want %q", got, want)
+	}
+}
+
 func TestProgressWriterFormatsUnknownAndLargeByteCounts(t *testing.T) {
 	var buf bytes.Buffer
 	progress := newProgressWriter(&buf, "Downloading")
@@ -87,9 +98,9 @@ func TestProgressReporterWritesToStderrForTTYTextOutput(t *testing.T) {
 	}
 }
 
-func TestIsTerminal(t *testing.T) {
-	if isTerminal(&bytes.Buffer{}) {
-		t.Fatal("bytes.Buffer reported as terminal")
+func TestIsCharDevice(t *testing.T) {
+	if isCharDevice(&bytes.Buffer{}) {
+		t.Fatal("bytes.Buffer reported as character device")
 	}
 
 	tty, err := os.OpenFile("/dev/null", os.O_WRONLY, 0)
@@ -97,7 +108,7 @@ func TestIsTerminal(t *testing.T) {
 		t.Skipf("open /dev/null: %v", err)
 	}
 	defer func() { _ = tty.Close() }()
-	if !isTerminal(tty) {
+	if !isCharDevice(tty) {
 		t.Fatal("/dev/null did not report as a character device")
 	}
 
@@ -108,7 +119,7 @@ func TestIsTerminal(t *testing.T) {
 	if err := closed.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if isTerminal(closed) {
-		t.Fatal("closed file reported as terminal")
+	if isCharDevice(closed) {
+		t.Fatal("closed file reported as character device")
 	}
 }

@@ -25,11 +25,19 @@ func FuzzListInstancesFiltering(f *testing.F) {
 
 		result := filterInstances(items, names, nameFilter, platformFilter)
 
-		// Invariant: if name filter is set, all results contain the filter substring
+		// Invariant: if a filter is set, all results contain the filter substring
+		// in either the Name tag or instance ID.
 		if nameFilter != "" {
 			for _, info := range result {
-				if !strings.Contains(strings.ToLower(info.Name), strings.ToLower(nameFilter)) {
-					t.Errorf("ListInstances: name %q does not contain filter %q", info.Name, nameFilter)
+				filter := strings.ToLower(nameFilter)
+				if !strings.Contains(strings.ToLower(info.Name), filter) &&
+					!strings.Contains(strings.ToLower(info.InstanceID), filter) {
+					t.Errorf(
+						"ListInstances: name %q and instance ID %q do not contain filter %q",
+						info.Name,
+						info.InstanceID,
+						nameFilter,
+					)
 				}
 			}
 		}

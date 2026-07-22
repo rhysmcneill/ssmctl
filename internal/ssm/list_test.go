@@ -101,6 +101,16 @@ func TestListInstances(t *testing.T) {
 			wantIDs: []string{"i-aaa"},
 		},
 		{
+			name: "filter narrows by instance ID substring case-insensitively",
+			ssm: &mockListAPI{pages: [][]ssmtypes.InstanceInformation{{
+				linuxInstance("i-abc123", "3.2.0"),
+				linuxInstance("i-def456", "3.2.0"),
+			}}},
+			ec2:     ec2WithNames(map[string]string{"i-abc123": "api-server", "i-def456": "worker"}),
+			filter:  "ABC",
+			wantIDs: []string{"i-abc123"},
+		},
+		{
 			name: "platform filter narrows by platform case-insensitively",
 			ssm: &mockListAPI{pages: [][]ssmtypes.InstanceInformation{{
 				linuxInstance("i-linux", "3.2.0"),

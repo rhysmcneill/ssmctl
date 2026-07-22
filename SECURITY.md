@@ -9,7 +9,7 @@ Currently, the following versions are actively supported.
 | Version | Supported |
 | :---: | :---: |
 | 2.x | ✅ Active support |
-| 1.x | ✅ Critical fixes |
+| 1.x | ✅ Supported but no more fixes for v1 |
 | < 1.0 | ❌ Not supported |
 
 It is highly recommended to use the latest release.

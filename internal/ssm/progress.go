@@ -30,5 +30,5 @@ func (r *progressReader) Read(p []byte) (int, error) {
 		r.done += int64(n)
 		reportProgress(r.progress, r.done, r.total)
 	}
-	return n, err
+	return n, err //nolint:wrapcheck // io.Reader implementations must preserve sentinel errors such as io.EOF.
 }

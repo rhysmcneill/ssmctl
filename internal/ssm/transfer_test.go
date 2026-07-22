@@ -225,6 +225,55 @@ func TestDownload(t *testing.T) {
 	}
 }
 
+func TestDownloadWithOptionsReportsProgress(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	content := "hello progress download"
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+
+	client := &mockSSMRunClient{
+		sendCommandFn: func(_ context.Context, _ *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+			return &ssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-dl-progress")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return &ssm.GetCommandInvocationOutput{
+				Status:                types.CommandInvocationStatusSuccess,
+				StandardOutputContent: aws.String(encoded),
+				ResponseCode:          0,
+			}, nil
+		},
+	}
+
+	localFile := filepath.Join(t.TempDir(), "download.txt")
+	var events [][2]int64
+
+	_, err := DownloadWithOptions(
+		context.Background(),
+		client,
+		TargetInfo{InstanceID: "i-123"},
+		"/remote/file.txt",
+		localFile,
+		30*time.Second,
+		TransferOptions{Progress: func(done, total int64) {
+			events = append(events, [2]int64{done, total})
+		}},
+	)
+	if err != nil {
+		t.Fatalf("DownloadWithOptions() error = %v", err)
+	}
+
+	want := [2]int64{int64(len(content)), int64(len(content))}
+	if len(events) != 1 {
+		t.Fatalf("progress events = %v, want one terminal event", events)
+	}
+	if events[0] != want {
+		t.Fatalf("progress event = %v, want %d/%d", events[0], len(content), len(content))
+	}
+}
+
 func TestDownload_RemoteCommandFails(t *testing.T) {
 	pollInterval = 10 * time.Millisecond
 	t.Cleanup(func() { pollInterval = 2 * time.Second })

@@ -116,6 +116,22 @@ func UploadViaS3(
 	keepStaging bool,
 	timeout time.Duration,
 ) (*TransferResult, error) {
+	return UploadViaS3WithOptions(ctx, ssmClient, s3Client, target, localPath, remotePath, staging, keepStaging, timeout, TransferOptions{})
+}
+
+// UploadViaS3WithOptions stages a local file in S3 with optional progress
+// reporting.
+func UploadViaS3WithOptions(
+	ctx context.Context,
+	ssmClient RunAPI,
+	s3Client S3API,
+	target TargetInfo,
+	localPath, remotePath string,
+	staging S3Location,
+	keepStaging bool,
+	timeout time.Duration,
+	opts TransferOptions,
+) (*TransferResult, error) {
 	file, err := os.Open(localPath) // #nosec G304 -- localPath is user-supplied via CLI
 	if err != nil {
 		return nil, fmt.Errorf("failed to open local file: %w", err)
@@ -126,16 +142,21 @@ func UploadViaS3(
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat local file: %w", err)
 	}
+	reportProgress(opts.Progress, 0, stat.Size())
 
 	key, err := stagingKeyFunc(staging.Prefix, filepath.Base(localPath))
 	if err != nil {
 		return nil, err
 	}
+	body := io.Reader(file)
+	if opts.Progress != nil {
+		body = &progressReader{reader: file, total: stat.Size(), progress: opts.Progress}
+	}
 
 	if _, err := s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(staging.Bucket),
 		Key:    aws.String(key),
-		Body:   file,
+		Body:   body,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to stage file in S3: %w", err)
 	}
@@ -199,6 +220,22 @@ func DownloadViaS3(
 	keepStaging bool,
 	timeout time.Duration,
 ) (*TransferResult, error) {
+	return DownloadViaS3WithOptions(ctx, ssmClient, s3Client, target, remotePath, localPath, staging, keepStaging, timeout, TransferOptions{})
+}
+
+// DownloadViaS3WithOptions downloads a staged S3 object locally with optional
+// progress reporting.
+func DownloadViaS3WithOptions(
+	ctx context.Context,
+	ssmClient RunAPI,
+	s3Client S3API,
+	target TargetInfo,
+	remotePath, localPath string,
+	staging S3Location,
+	keepStaging bool,
+	timeout time.Duration,
+	opts TransferOptions,
+) (*TransferResult, error) {
 	// Derive the staging basename from the original user path before any
 	// Windows-only normalization. remoteBaseName handles backslash conversion
 	// itself, so keeping the raw path here avoids coupling key naming to the
@@ -234,7 +271,7 @@ func DownloadViaS3(
 		return nil, fmt.Errorf("remote aws s3 cp failed: %s", strings.TrimSpace(pushed.Stderr))
 	}
 
-	bytes, getErr := fetchStagedObject(ctx, s3Client, staging.Bucket, key, localPath)
+	bytes, getErr := fetchStagedObject(ctx, s3Client, staging.Bucket, key, localPath, opts)
 	cleanupErr := maybeCleanupStagingObject(ctx, s3Client, staging.Bucket, key, keepStaging, getErr == nil)
 	if getErr != nil {
 		return nil, getErr
@@ -254,7 +291,7 @@ func DownloadViaS3(
 	}, nil
 }
 
-func fetchStagedObject(ctx context.Context, s3Client S3API, bucket, key, localPath string) (int64, error) {
+func fetchStagedObject(ctx context.Context, s3Client S3API, bucket, key, localPath string, opts TransferOptions) (int64, error) {
 	out, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
@@ -270,10 +307,25 @@ func fetchStagedObject(ctx context.Context, s3Client S3API, bucket, key, localPa
 	}
 	defer func() { _ = dst.Close() }()
 
-	n, err := io.Copy(dst, out.Body)
+	total := int64(-1)
+	if out.ContentLength != nil {
+		total = *out.ContentLength
+	}
+	reportProgress(opts.Progress, 0, total)
+	body := io.Reader(out.Body)
+	if opts.Progress != nil {
+		body = &progressReader{reader: out.Body, total: total, progress: opts.Progress}
+	}
+
+	n, err := io.Copy(dst, body)
 	if err != nil {
 		return 0, fmt.Errorf("failed to write local file: %w", err)
 	}
+	if total < 0 {
+		reportProgress(opts.Progress, n, n)
+		return n, nil
+	}
+	reportProgress(opts.Progress, n, total)
 	return n, nil
 }
 

@@ -31,6 +31,8 @@ Download: ssmctl cp my-server:/var/log/app.log ./app.log
 
 Note: in-band SSM transfers are limited to ~2MB uploads and ~36KB downloads.
 Use --via s3://bucket/prefix to stage the file in S3 and lift those limits.
+Text output shows transfer progress on interactive terminals; JSON and piped
+output stay quiet.
 
 Linux/macOS targets use POSIX shell utilities under the hood. Windows targets
 use PowerShell for in-band transfers and require the AWS CLI on the instance
@@ -55,8 +57,9 @@ for the S3-backed path.`,
 			}
 
 			var (
-				result *ssmlib.TransferResult
-				err    error
+				result       *ssmlib.TransferResult
+				err          error
+				transferOpts = ssmlib.TransferOptions{}
 			)
 			switch {
 			case srcRemote && !dstRemote:
@@ -64,10 +67,11 @@ for the S3-backed path.`,
 				if resolveErr != nil {
 					return fmt.Errorf("resolve source instance: %w", resolveErr)
 				}
+				transferOpts.Progress = progressReporter(cmd, a.Config.Output, "Downloading")
 				if useS3 {
-					result, err = ssmlib.DownloadViaS3(cmd.Context(), a.SSMClient, a.S3Client, target, srcPath, dstPath, staging, opts.keepStaging, a.Config.Timeout)
+					result, err = ssmlib.DownloadViaS3WithOptions(cmd.Context(), a.SSMClient, a.S3Client, target, srcPath, dstPath, staging, opts.keepStaging, a.Config.Timeout, transferOpts)
 				} else {
-					result, err = ssmlib.Download(cmd.Context(), a.SSMClient, target, srcPath, dstPath, a.Config.Timeout)
+					result, err = ssmlib.DownloadWithOptions(cmd.Context(), a.SSMClient, target, srcPath, dstPath, a.Config.Timeout, transferOpts)
 				}
 
 			case !srcRemote && dstRemote:
@@ -75,10 +79,11 @@ for the S3-backed path.`,
 				if resolveErr != nil {
 					return fmt.Errorf("resolve destination instance: %w", resolveErr)
 				}
+				transferOpts.Progress = progressReporter(cmd, a.Config.Output, "Uploading")
 				if useS3 {
-					result, err = ssmlib.UploadViaS3(cmd.Context(), a.SSMClient, a.S3Client, target, srcPath, dstPath, staging, opts.keepStaging, a.Config.Timeout)
+					result, err = ssmlib.UploadViaS3WithOptions(cmd.Context(), a.SSMClient, a.S3Client, target, srcPath, dstPath, staging, opts.keepStaging, a.Config.Timeout, transferOpts)
 				} else {
-					result, err = ssmlib.Upload(cmd.Context(), a.SSMClient, target, srcPath, dstPath, a.Config.Timeout)
+					result, err = ssmlib.UploadWithOptions(cmd.Context(), a.SSMClient, target, srcPath, dstPath, a.Config.Timeout, transferOpts)
 				}
 
 			default:

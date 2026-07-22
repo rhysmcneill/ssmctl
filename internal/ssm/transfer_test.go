@@ -135,6 +135,42 @@ func TestUpload(t *testing.T) {
 	}
 }
 
+func TestUploadWithOptionsReportsProgress(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	content := []byte(strings.Repeat("x", 5000))
+	localFile := filepath.Join(t.TempDir(), "upload.txt")
+	if err := os.WriteFile(localFile, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var events [][2]int64
+	_, err := UploadWithOptions(
+		context.Background(),
+		alwaysSucceedClient(),
+		TargetInfo{InstanceID: "i-123"},
+		localFile,
+		"/tmp/upload.txt",
+		30*time.Second,
+		TransferOptions{Progress: func(done, total int64) {
+			events = append(events, [2]int64{done, total})
+		}},
+	)
+	if err != nil {
+		t.Fatalf("UploadWithOptions() error = %v", err)
+	}
+	if len(events) < 3 {
+		t.Fatalf("progress events = %v, want initial, chunk, and completion events", events)
+	}
+	if events[0] != [2]int64{0, int64(len(content))} {
+		t.Fatalf("first progress event = %v, want 0/%d", events[0], len(content))
+	}
+	if got := events[len(events)-1]; got != [2]int64{int64(len(content)), int64(len(content))} {
+		t.Fatalf("final progress event = %v, want %d/%d", got, len(content), len(content))
+	}
+}
+
 func TestDownload(t *testing.T) {
 	pollInterval = 10 * time.Millisecond
 	t.Cleanup(func() { pollInterval = 2 * time.Second })

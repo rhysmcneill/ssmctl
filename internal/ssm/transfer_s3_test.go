@@ -117,6 +117,16 @@ func TestDefaultStagingKey_NoPrefix(t *testing.T) {
 	}
 }
 
+func TestStagingKey(t *testing.T) {
+	key, err := StagingKey("tmp/", "../payload.txt")
+	if err != nil {
+		t.Fatalf("StagingKey error: %v", err)
+	}
+	if !strings.HasPrefix(key, "tmp/ssmctl-") || !strings.HasSuffix(key, "-payload.txt") {
+		t.Fatalf("StagingKey = %q, want key under tmp with sanitized basename", key)
+	}
+}
+
 func TestSanitizeBasename_StripsPathSeparators(t *testing.T) {
 	k, err := defaultStagingKey("tmp", "/etc/../../passwd")
 	if err != nil {
@@ -162,6 +172,7 @@ type mockS3Client struct {
 	getCalls     int
 	capturedPuts []string
 	capturedGets []string
+	noLength     bool
 }
 
 func newMockS3Client() *mockS3Client {
@@ -196,7 +207,12 @@ func (m *mockS3Client) GetObject(_ context.Context, in *s3.GetObjectInput, _ ...
 	if !ok {
 		return nil, errors.New("NoSuchKey")
 	}
-	return &s3.GetObjectOutput{Body: io.NopCloser(bytes.NewReader(data))}, nil
+	out := &s3.GetObjectOutput{Body: io.NopCloser(bytes.NewReader(data))}
+	if !m.noLength {
+		contentLength := int64(len(data))
+		out.ContentLength = &contentLength
+	}
+	return out, nil
 }
 
 func (m *mockS3Client) DeleteObject(_ context.Context, in *s3.DeleteObjectInput, _ ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
@@ -305,6 +321,43 @@ func TestUploadViaS3_Success(t *testing.T) {
 	}
 	if result.KeptStaging {
 		t.Error("KeptStaging = true, want false")
+	}
+}
+
+func TestUploadViaS3WithOptionsReportsProgress(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	withFixedStagingKey(t, "tmp/ssmctl-progress-payload.bin")
+
+	content := []byte(strings.Repeat("x", 4096))
+	localFile := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(localFile, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var events [][2]int64
+	_, err := UploadViaS3WithOptions(
+		context.Background(),
+		ssmRunCapturer(nil, 0, ""),
+		newMockS3Client(),
+		TargetInfo{InstanceID: "i-123"},
+		localFile, "/var/data/payload.bin",
+		S3Location{Bucket: "my-bucket", Prefix: "tmp"},
+		false,
+		30*time.Second,
+		TransferOptions{Progress: func(done, total int64) {
+			events = append(events, [2]int64{done, total})
+		}},
+	)
+	if err != nil {
+		t.Fatalf("UploadViaS3WithOptions error: %v", err)
+	}
+	if events[0] != [2]int64{0, int64(len(content))} {
+		t.Fatalf("first progress event = %v, want 0/%d", events[0], len(content))
+	}
+	if got := events[len(events)-1]; got != [2]int64{int64(len(content)), int64(len(content))} {
+		t.Fatalf("final progress event = %v, want %d/%d", got, len(content), len(content))
 	}
 }
 
@@ -463,6 +516,79 @@ func TestDownloadViaS3_Success(t *testing.T) {
 	}
 	if result.Bytes != int64(len("LARGE LOG CONTENT")) {
 		t.Errorf("Bytes = %d", result.Bytes)
+	}
+}
+
+func TestDownloadViaS3WithOptionsReportsProgress(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	withFixedStagingKey(t, "tmp/ssmctl-progress-app.log")
+
+	content := []byte(strings.Repeat("x", 4096))
+	mockS3 := newMockS3Client()
+	mockS3.objects["my-bucket/tmp/ssmctl-progress-app.log"] = content
+
+	localFile := filepath.Join(t.TempDir(), "app.log")
+	var events [][2]int64
+	_, err := DownloadViaS3WithOptions(
+		context.Background(),
+		ssmRunCapturer(nil, 0, ""),
+		mockS3,
+		TargetInfo{InstanceID: "i-123"},
+		"/var/log/app.log", localFile,
+		S3Location{Bucket: "my-bucket", Prefix: "tmp"},
+		false,
+		30*time.Second,
+		TransferOptions{Progress: func(done, total int64) {
+			events = append(events, [2]int64{done, total})
+		}},
+	)
+	if err != nil {
+		t.Fatalf("DownloadViaS3WithOptions error: %v", err)
+	}
+	if events[0] != [2]int64{0, int64(len(content))} {
+		t.Fatalf("first progress event = %v, want 0/%d", events[0], len(content))
+	}
+	if got := events[len(events)-1]; got != [2]int64{int64(len(content)), int64(len(content))} {
+		t.Fatalf("final progress event = %v, want %d/%d", got, len(content), len(content))
+	}
+}
+
+func TestDownloadViaS3WithOptionsReportsProgressWithoutContentLength(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	withFixedStagingKey(t, "tmp/ssmctl-progress-unknown.log")
+
+	content := []byte("unknown length")
+	mockS3 := newMockS3Client()
+	mockS3.objects["my-bucket/tmp/ssmctl-progress-unknown.log"] = content
+	mockS3.noLength = true
+
+	localFile := filepath.Join(t.TempDir(), "unknown.log")
+	var events [][2]int64
+	_, err := DownloadViaS3WithOptions(
+		context.Background(),
+		ssmRunCapturer(nil, 0, ""),
+		mockS3,
+		TargetInfo{InstanceID: "i-123"},
+		"/var/log/unknown.log", localFile,
+		S3Location{Bucket: "my-bucket", Prefix: "tmp"},
+		false,
+		30*time.Second,
+		TransferOptions{Progress: func(done, total int64) {
+			events = append(events, [2]int64{done, total})
+		}},
+	)
+	if err != nil {
+		t.Fatalf("DownloadViaS3WithOptions error: %v", err)
+	}
+	if events[0] != [2]int64{0, -1} {
+		t.Fatalf("first progress event = %v, want unknown total", events[0])
+	}
+	if got := events[len(events)-1]; got != [2]int64{int64(len(content)), int64(len(content))} {
+		t.Fatalf("final progress event = %v, want %d/%d", got, len(content), len(content))
 	}
 }
 

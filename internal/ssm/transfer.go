@@ -66,10 +66,18 @@ func ParseArg(s string) (instance, path string, isRemote bool) {
 // heredoc. The 'EOF' delimiter is single-quoted, which prevents shell
 // interpretation of any characters in the chunk (i.e., +, /, =).
 func Upload(ctx context.Context, client RunAPI, target TargetInfo, localPath, remotePath string, timeout time.Duration) (*TransferResult, error) {
+	return UploadWithOptions(ctx, client, target, localPath, remotePath, timeout, TransferOptions{})
+}
+
+// UploadWithOptions copies a local file to a remote instance via SSM with
+// optional progress reporting.
+func UploadWithOptions(ctx context.Context, client RunAPI, target TargetInfo, localPath, remotePath string, timeout time.Duration, opts TransferOptions) (*TransferResult, error) {
 	data, err := os.ReadFile(localPath) // #nosec G304 -- localPath is a user-supplied CLI argument, path traversal is intentional
 	if err != nil {
 		return nil, fmt.Errorf("failed to read local file: %w", err)
 	}
+	totalBytes := int64(len(data))
+	reportProgress(opts.Progress, 0, totalBytes)
 
 	encoded := base64.StdEncoding.EncodeToString(data)
 	tempFile := tempFileForTarget(target)
@@ -121,6 +129,13 @@ func Upload(ctx context.Context, client RunAPI, target TargetInfo, localPath, re
 			return nil, fmt.Errorf("chunk command failed: %s", result.Stderr)
 		}
 		chunks++
+		rawDone := int64(end / 4 * 3)
+		if rawDone > totalBytes {
+			rawDone = totalBytes
+		}
+		if rawDone < totalBytes {
+			reportProgress(opts.Progress, rawDone, totalBytes)
+		}
 	}
 
 	finaliseCmd := fmt.Sprintf("mkdir -p %s && mv %s %s", path.Dir(remotePath), tempFile, remotePath)
@@ -139,12 +154,13 @@ func Upload(ctx context.Context, client RunAPI, target TargetInfo, localPath, re
 	if result.ExitCode != 0 {
 		return nil, fmt.Errorf("move command failed: %s", result.Stderr)
 	}
+	reportProgress(opts.Progress, totalBytes, totalBytes)
 
 	return &TransferResult{
 		Direction:   "upload",
 		Source:      localPath,
 		Destination: target.InstanceID + ":" + remotePath,
-		Bytes:       int64(len(data)),
+		Bytes:       totalBytes,
 		Chunks:      chunks,
 	}, nil
 }
@@ -152,6 +168,12 @@ func Upload(ctx context.Context, client RunAPI, target TargetInfo, localPath, re
 // Download copies a remote file to a local path via SSM.
 // Practical limit: ~36KB due to SSM stdout truncation.
 func Download(ctx context.Context, client RunAPI, target TargetInfo, remotePath, localPath string, timeout time.Duration) (*TransferResult, error) {
+	return DownloadWithOptions(ctx, client, target, remotePath, localPath, timeout, TransferOptions{})
+}
+
+// DownloadWithOptions copies a remote file to a local path via SSM with
+// optional progress reporting.
+func DownloadWithOptions(ctx context.Context, client RunAPI, target TargetInfo, remotePath, localPath string, timeout time.Duration, opts TransferOptions) (*TransferResult, error) {
 	command := fmt.Sprintf("cat %s | base64", remotePath)
 	if target.IsWindows() {
 		remotePath = normalizeWindowsPath(remotePath)
@@ -174,6 +196,7 @@ func Download(ctx context.Context, client RunAPI, target TargetInfo, remotePath,
 	if err := os.WriteFile(localPath, data, 0o600); err != nil {
 		return nil, fmt.Errorf("failed to write local file: %w", err)
 	}
+	reportProgress(opts.Progress, int64(len(data)), int64(len(data)))
 
 	return &TransferResult{
 		Direction:   "download",

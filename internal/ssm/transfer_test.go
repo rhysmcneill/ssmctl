@@ -135,6 +135,74 @@ func TestUpload(t *testing.T) {
 	}
 }
 
+func TestUploadWithOptionsReportsProgress(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	content := []byte(strings.Repeat("x", 5000))
+	localFile := filepath.Join(t.TempDir(), "upload.txt")
+	if err := os.WriteFile(localFile, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var commands []string
+	client := &mockSSMRunClient{
+		sendCommandFn: func(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+			commands = append(commands, input.Parameters["commands"]...)
+			return &ssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-upload-progress")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return &ssm.GetCommandInvocationOutput{
+				Status:                types.CommandInvocationStatusSuccess,
+				StandardOutputContent: aws.String(""),
+				ResponseCode:          0,
+			}, nil
+		},
+	}
+
+	type progressEvent struct {
+		done         int64
+		total        int64
+		commandsSeen int
+	}
+	var events []progressEvent
+	_, err := UploadWithOptions(
+		context.Background(),
+		client,
+		TargetInfo{InstanceID: "i-123"},
+		localFile,
+		"/tmp/upload.txt",
+		30*time.Second,
+		TransferOptions{Progress: func(done, total int64) {
+			events = append(events, progressEvent{
+				done:         done,
+				total:        total,
+				commandsSeen: len(commands),
+			})
+		}},
+	)
+	if err != nil {
+		t.Fatalf("UploadWithOptions() error = %v", err)
+	}
+	if len(events) < 3 {
+		t.Fatalf("progress events = %v, want initial, chunk, and completion events", events)
+	}
+	if events[0].done != 0 || events[0].total != int64(len(content)) {
+		t.Fatalf("first progress event = %v, want 0/%d", events[0], len(content))
+	}
+	if got := events[len(events)-1]; got.done != int64(len(content)) || got.total != int64(len(content)) {
+		t.Fatalf("final progress event = %v, want %d/%d", got, len(content), len(content))
+	}
+	if got := events[len(events)-1].commandsSeen; got != len(commands) {
+		t.Fatalf("final progress event saw %d commands, want %d", got, len(commands))
+	}
+	if !strings.Contains(commands[len(commands)-1], "mv /tmp/._ssmctl_transfer /tmp/upload.txt") {
+		t.Fatalf("final command = %q, want move to destination", commands[len(commands)-1])
+	}
+}
+
 func TestDownload(t *testing.T) {
 	pollInterval = 10 * time.Millisecond
 	t.Cleanup(func() { pollInterval = 2 * time.Second })
@@ -186,6 +254,55 @@ func TestDownload(t *testing.T) {
 	}
 	if result.Bytes != int64(len(content)) {
 		t.Errorf("Bytes = %d, want %d", result.Bytes, len(content))
+	}
+}
+
+func TestDownloadWithOptionsReportsProgress(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	content := "hello progress download"
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+
+	client := &mockSSMRunClient{
+		sendCommandFn: func(_ context.Context, _ *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+			return &ssm.SendCommandOutput{
+				Command: &types.Command{CommandId: aws.String("cmd-dl-progress")},
+			}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return &ssm.GetCommandInvocationOutput{
+				Status:                types.CommandInvocationStatusSuccess,
+				StandardOutputContent: aws.String(encoded),
+				ResponseCode:          0,
+			}, nil
+		},
+	}
+
+	localFile := filepath.Join(t.TempDir(), "download.txt")
+	var events [][2]int64
+
+	_, err := DownloadWithOptions(
+		context.Background(),
+		client,
+		TargetInfo{InstanceID: "i-123"},
+		"/remote/file.txt",
+		localFile,
+		30*time.Second,
+		TransferOptions{Progress: func(done, total int64) {
+			events = append(events, [2]int64{done, total})
+		}},
+	)
+	if err != nil {
+		t.Fatalf("DownloadWithOptions() error = %v", err)
+	}
+
+	want := [2]int64{int64(len(content)), int64(len(content))}
+	if len(events) != 1 {
+		t.Fatalf("progress events = %v, want one terminal event", events)
+	}
+	if events[0] != want {
+		t.Fatalf("progress event = %v, want %d/%d", events[0], len(content), len(content))
 	}
 }
 

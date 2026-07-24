@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.0](https://github.com/rhysmcneill/ssmctl/compare/v2.1.0...v2.2.0) (2026-07-23)
+
+
+### Features
+
+* **cp:** add cp transfer progress reporting ([#173](https://github.com/rhysmcneill/ssmctl/issues/173)) ([0f4fcf9](https://github.com/rhysmcneill/ssmctl/commit/0f4fcf90b694f2d3b5127dd1ef9609016b935baa))
+
+
+### Bug Fixes
+
+* **list:** Match list filter against instance IDs ([#171](https://github.com/rhysmcneill/ssmctl/issues/171)) ([988b656](https://github.com/rhysmcneill/ssmctl/commit/988b6568b026e98abf1622f063f9da0528be53c6))
+
 ## [2.1.0](https://github.com/rhysmcneill/ssmctl/compare/v2.0.2...v2.1.0) (2026-06-13)
 
 

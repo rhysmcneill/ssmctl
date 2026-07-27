@@ -67,7 +67,7 @@ func Run() error {
 	f.BoolVarP(&opts.Debug, "debug", "d", false, "Enable debug logging")
 	f.DurationVarP(&opts.Timeout, "timeout", "t", 60*time.Second, "Timeout for commands")
 
-	cmd.AddCommand(connectCmd(), runCmd(), cpCmd(), versionCmd(), listCmd(), forwardCmd(), completionCmd())
+	cmd.AddCommand(connectCmd(), runCmd(), cpCmd(), versionCmd(), listCmd(), forwardCmd(), completionCmd(), paramCmd())
 
 	if err := cmd.Execute(); err != nil {
 		return fmt.Errorf("execute command: %w", err)

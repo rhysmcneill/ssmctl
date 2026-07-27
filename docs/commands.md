@@ -267,6 +267,149 @@ See [docs/iam.md — cp via S3](iam.md#cp-via-s3) for copy-paste policy fragment
 
 ---
 
+## `ssmctl param`
+
+Manage AWS Systems Manager Parameter Store parameters. SecureString values are
+decrypted automatically on `get` and `list`.
+
+---
+
+### `ssmctl param get`
+
+Fetch a single parameter's value.
+
+```bash
+ssmctl param get <name> [--output json]
+```
+
+Text output prints **only** the value — no label — making it pipe-friendly:
+
+```bash
+export DB_PASS=$(ssmctl param get /myapp/prod/DB_PASSWORD)
+```
+
+#### Examples
+
+```bash
+# Print the value to stdout
+ssmctl param get /myapp/prod/DB_PASSWORD
+
+# Full parameter object as JSON (name, type, version, ARN, last_modified_date)
+ssmctl param get /myapp/prod/DB_PASSWORD --output json
+```
+
+#### Required IAM permissions
+
+- `ssm:GetParameter`
+
+---
+
+### `ssmctl param list`
+
+List all parameters whose name begins with a given path prefix.
+
+```bash
+ssmctl param list <path> [--recursive] [--output json]
+```
+
+#### Output
+
+```
+NAME                         TYPE           VERSION   LAST MODIFIED
+/myapp/prod/DB_PASSWORD      SecureString   3         2026-07-20 09:12:00
+/myapp/prod/FEATURE_FLAG_X   String         1         2026-07-18 14:30:00
+/myapp/prod/API_URL          String         2         2026-07-15 11:00:00
+```
+
+#### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--recursive` | Include parameters in all sub-paths |
+| `--output json` | Emit a JSON array of parameter objects |
+
+#### Examples
+
+```bash
+# List parameters under a path
+ssmctl param list /myapp/prod/
+
+# Recursively list everything under /myapp/
+ssmctl param list /myapp/ --recursive
+
+# Machine-readable output
+ssmctl param list /myapp/prod/ --output json
+```
+
+#### Required IAM permissions
+
+- `ssm:GetParametersByPath`
+
+---
+
+### `ssmctl param put`
+
+Create a new parameter or update an existing one.
+
+```bash
+ssmctl param put <name> <value> [--type String|StringList|SecureString] [--overwrite]
+```
+
+`--type` defaults to `String`. Pass `--overwrite` to update a parameter that already exists
+(without it, attempting to overwrite returns an error with a reminder to add the flag).
+
+#### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--type` | `String` | Parameter type: `String`, `StringList`, or `SecureString` |
+| `--overwrite` | `false` | Overwrite the parameter if it already exists |
+
+#### Examples
+
+```bash
+# Create a plain string parameter
+ssmctl param put /myapp/prod/API_URL "https://api.example.com"
+
+# Create an encrypted SecureString
+ssmctl param put /myapp/prod/DB_PASSWORD "supersecret" --type SecureString
+
+# Update an existing parameter
+ssmctl param put /myapp/prod/DB_PASSWORD "newpassword" --type SecureString --overwrite
+
+# Capture the new version number
+ssmctl param put /myapp/prod/DB_PASSWORD "newpassword" --overwrite --output json
+```
+
+#### Required IAM permissions
+
+- `ssm:PutParameter`
+
+---
+
+### `ssmctl param delete`
+
+Permanently delete a parameter.
+
+```bash
+ssmctl param delete <name> [--output json]
+```
+
+#### Examples
+
+```bash
+ssmctl param delete /myapp/prod/OLD_SECRET
+
+# Confirm deletion as JSON
+ssmctl param delete /myapp/prod/OLD_SECRET --output json
+```
+
+#### Required IAM permissions
+
+- `ssm:DeleteParameter`
+
+---
+
 ## `ssmctl version`
 
 Print the build version, commit SHA, and build date.
@@ -359,7 +502,6 @@ If a Name tag matches more than one running instance, `ssmctl` returns an error 
 | `forward` | Supported | Supported |
 | `run` | Supported | Supported |
 | `cp` | Supported | Supported |
+| `param` | Supported | Supported |
 | `version` | Supported | Supported |
 | `completion` | Supported | Supported |
-
-

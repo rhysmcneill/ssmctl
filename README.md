@@ -136,6 +136,24 @@ No SCP or bastion jump host needed. For files over ~36 KB, use the S3-backed pat
 ssmctl cp --via s3://my-bucket/staging web-1:/var/log/access.log.2 ./access.log.2
 ```
 
+### Read and inject secrets without leaving your terminal
+
+```bash
+# Pipe a SecureString value directly into an environment variable
+export DB_PASS=$(ssmctl param get /myapp/prod/DB_PASSWORD)
+
+# List everything under a path to audit what's deployed
+ssmctl param list /myapp/prod/
+
+# Rotate a secret in one command
+ssmctl param put /myapp/prod/DB_PASSWORD "newpassword" --type SecureString --overwrite
+
+# Delete a parameter
+ssmctl param delete /myapp/prod/DB_PASSWORD
+```
+
+No context-switching to the AWS console or memorising `aws ssm get-parameter --with-decryption` syntax.
+
 ---
 
 ## Why not just use the AWS CLI?
@@ -167,6 +185,10 @@ ssmctl cp --via s3://my-bucket/staging web-1:/var/log/access.log.2 ./access.log.
 | `ssmctl cp ./file <target>:/path` | Upload a file |
 | `ssmctl cp <target>:/path ./file` | Download a file |
 | `ssmctl cp --via s3://bucket <src> <dst>` | Large file transfer via S3 staging |
+| `ssmctl param get <name>` | Read a Parameter Store value (decrypts SecureString automatically) |
+| `ssmctl param list <path>` | List parameters under a path prefix |
+| `ssmctl param put <name> <value>` | Create or update a parameter |
+| `ssmctl param delete <name>` | Delete a parameter |
 | `ssmctl completion [bash\|zsh\|fish\|powershell]` | Generate shell completion scripts |
 
 A `<target>` is an instance ID (`i-0abc...`) or a Name tag (`web-1`). See the [full command reference](docs/commands.md).

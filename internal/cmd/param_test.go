@@ -457,6 +457,12 @@ func TestParamDeleteCmd_WriteError(t *testing.T) {
 
 // ── printParamTable ───────────────────────────────────────────────────────────
 
+func TestPrintParamTable_FlushError(t *testing.T) {
+	if err := printParamTable(errWriter{}, nil); err == nil {
+		t.Fatal("expected flush error when underlying writer fails, got nil")
+	}
+}
+
 func TestPrintParamTable_Empty(t *testing.T) {
 	var buf bytes.Buffer
 	if err := printParamTable(&buf, nil); err != nil {

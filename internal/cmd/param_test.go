@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -146,6 +147,12 @@ func TestParamGetCmd_APIError(t *testing.T) {
 
 // ── param list ────────────────────────────────────────────────────────────────
 
+// errWriter is an io.Writer that always returns an error — used to exercise
+// write-failure branches in cobra RunE functions.
+type errWriter struct{}
+
+func (errWriter) Write(_ []byte) (int, error) { return 0, errors.New("write error") }
+
 func makeListClient(params []types.Parameter) *mockParamCmdClient {
 	return &mockParamCmdClient{
 		getParametersByPath: func(_ context.Context, _ *awsssm.GetParametersByPathInput, _ ...func(*awsssm.Options)) (*awsssm.GetParametersByPathOutput, error) {
@@ -154,6 +161,18 @@ func makeListClient(params []types.Parameter) *mockParamCmdClient {
 	}
 }
 
+// executeParamCmdWithWriter is like executeParamCmd but uses a custom io.Writer
+// for the cobra output, allowing write-failure tests.
+func executeParamCmdWithWriter(ctx context.Context, a *app.App, args []string, w io.Writer) error {
+	root := &cobra.Command{Use: "ssmctl", SilenceErrors: true, SilenceUsage: true}
+	root.AddCommand(paramCmd())
+	root.SetArgs(args)
+	root.SetOut(w)
+	if a.Printer != nil {
+		a.Printer.Out = w
+	}
+	return root.ExecuteContext(context.WithValue(ctx, app.ContextKey{}, a)) //nolint:wrapcheck
+}
 func TestParamListCmd_TextOutput(t *testing.T) {
 	params := []types.Parameter{
 		{Name: aws.String("/myapp/prod/DB_PASSWORD"), Type: types.ParameterTypeSecureString, Value: aws.String("secret"), Version: 3},
@@ -226,6 +245,20 @@ func TestParamListCmd_RecursiveFlag(t *testing.T) {
 	}
 	if !capturedRecursive {
 		t.Error("expected Recursive to be true when --recursive flag is set")
+	}
+}
+
+func TestParamListCmd_APIError(t *testing.T) {
+	client := &mockParamCmdClient{
+		getParametersByPath: func(_ context.Context, _ *awsssm.GetParametersByPathInput, _ ...func(*awsssm.Options)) (*awsssm.GetParametersByPathOutput, error) {
+			return nil, errors.New("access denied")
+		},
+	}
+
+	var buf bytes.Buffer
+	err := executeParamCmd(context.Background(), newParamApp("text", client), []string{"param", "list", "/myapp/"}, &buf)
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
 }
 
@@ -373,6 +406,52 @@ func TestParamDeleteCmd_APIError(t *testing.T) {
 	err := executeParamCmd(context.Background(), newParamApp("text", client), []string{"param", "delete", "/missing"}, &buf)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+// ── write-error paths ─────────────────────────────────────────────────────────
+
+func TestParamGetCmd_WriteError(t *testing.T) {
+	client := &mockParamCmdClient{
+		getParameter: func(_ context.Context, _ *awsssm.GetParameterInput, _ ...func(*awsssm.Options)) (*awsssm.GetParameterOutput, error) {
+			return &awsssm.GetParameterOutput{
+				Parameter: &types.Parameter{
+					Name:  aws.String("/myapp/prod/DB_PASSWORD"),
+					Value: aws.String("secret"),
+				},
+			}, nil
+		},
+	}
+
+	err := executeParamCmdWithWriter(context.Background(), newParamApp("text", client), []string{"param", "get", "/myapp/prod/DB_PASSWORD"}, errWriter{})
+	if err == nil {
+		t.Fatal("expected write error, got nil")
+	}
+}
+
+func TestParamPutCmd_WriteError(t *testing.T) {
+	client := &mockParamCmdClient{
+		putParameter: func(_ context.Context, _ *awsssm.PutParameterInput, _ ...func(*awsssm.Options)) (*awsssm.PutParameterOutput, error) {
+			return &awsssm.PutParameterOutput{Version: 1, Tier: types.ParameterTierStandard}, nil
+		},
+	}
+
+	err := executeParamCmdWithWriter(context.Background(), newParamApp("text", client), []string{"param", "put", "/myapp/prod/PARAM", "value"}, errWriter{})
+	if err == nil {
+		t.Fatal("expected write error, got nil")
+	}
+}
+
+func TestParamDeleteCmd_WriteError(t *testing.T) {
+	client := &mockParamCmdClient{
+		deleteParameter: func(_ context.Context, _ *awsssm.DeleteParameterInput, _ ...func(*awsssm.Options)) (*awsssm.DeleteParameterOutput, error) {
+			return &awsssm.DeleteParameterOutput{}, nil
+		},
+	}
+
+	err := executeParamCmdWithWriter(context.Background(), newParamApp("text", client), []string{"param", "delete", "/myapp/prod/PARAM"}, errWriter{})
+	if err == nil {
+		t.Fatal("expected write error, got nil")
 	}
 }
 

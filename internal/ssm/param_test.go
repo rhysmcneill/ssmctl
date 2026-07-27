@@ -200,6 +200,19 @@ func TestListParameters_Empty(t *testing.T) {
 	}
 }
 
+func TestListParameters_APIError(t *testing.T) {
+	client := &mockParamAPI{
+		getParametersByPath: func(_ context.Context, _ *awsssm.GetParametersByPathInput, _ ...func(*awsssm.Options)) (*awsssm.GetParametersByPathOutput, error) {
+			return nil, errors.New("access denied")
+		},
+	}
+
+	_, err := ListParameters(context.Background(), client, "/myapp/prod/", false)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 // ── PutParameter ──────────────────────────────────────────────────────────────
 
 func TestPutParameter_Success(t *testing.T) {

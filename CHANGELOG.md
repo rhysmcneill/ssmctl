@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/rhysmcneill/ssmctl/compare/v2.2.0...v2.3.0) (2026-08-06)
+
+
+### Features
+
+* **param:** add SSM Parameter Store commands (get/list/put/delete) ([#183](https://github.com/rhysmcneill/ssmctl/issues/183)) ([b9d51fa](https://github.com/rhysmcneill/ssmctl/commit/b9d51fa389fba9fc935e787100037ec98b130e81))
+
 ## [2.2.0](https://github.com/rhysmcneill/ssmctl/compare/v2.1.0...v2.2.0) (2026-07-23)
 
 

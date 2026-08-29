@@ -5,13 +5,14 @@ on:
     - cron: "0 12 * * *"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  issues: write
+permissions: {}
 
 jobs:
   benchmark:
     name: Run & Compare Benchmarks
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     if: github.repository == 'rhysmcneill/ssmctl'
 

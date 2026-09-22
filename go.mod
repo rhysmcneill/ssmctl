@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.334.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.107.3
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.75.0
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.78.0
 	github.com/spf13/cobra v1.10.2
 )
 

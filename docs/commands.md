@@ -126,22 +126,37 @@ The Session Manager plugin must be [installed locally](installation.md#session-m
 
 ## `ssmctl run`
 
-Run a one-shot command on a target instance and stream its output back.
+Run a one-shot command on one or more instances and stream its output back.
 
 ```bash
 ssmctl run <target> -- <command> [args...]
+ssmctl run --filter <substring> [--platform <os>] -- <command> [args...]
 ```
 
 The `--` separator is required. Stdout and stderr are streamed to your terminal. The remote exit code is propagated.
 
 `run` uses `AWS-RunShellScript` for Linux/macOS targets and `AWS-RunPowerShellScript` for Windows targets.
 
+### Running across multiple instances
+
+Use `--filter` and/or `--platform` instead of `<target>` to run the command on every matching instance. Matching works the same way as [`ssmctl list`](#ssmctl-list). Instances that are not `Online` in SSM are skipped, and a notice is printed to stderr.
+
+- The command runs on all matching instances **in parallel**. Use `--concurrency` to cap how many run at once on large fleets.
+- Each line of stdout/stderr is prefixed with the instance name, or the instance ID if it has no Name tag.
+- Each instance's output is printed as soon as that instance finishes, so faster instances appear first. A `running on N instance(s)...` notice is printed to stderr when the run starts.
+- With `--output json`, nothing is printed until every instance has finished. The array is then in the same order as `ssmctl list`.
+- If **any** instance fails (non-zero exit code or an SSM error), `ssmctl` exits with code `1`.
+- With `--output json`, an array of per-instance results is printed.
+
 ### Flags
 
 | Flag | Description |
 |------|-------------|
-| `--timeout, -t` | Maximum time to wait for the command (default: `60s`) |
+| `--timeout, -t` | Maximum time to wait for the command (default: `60s`). Applies per instance |
 | `--output json` | Emit stdout/stderr/exit-code as JSON |
+| `--filter <string>` | Run on all online instances whose Name tag or ID contains this substring (case-insensitive) |
+| `--platform <os>` | Run on all online instances of this platform: `linux` or `windows` |
+| `--concurrency <int>` | Maximum instances to run on in parallel with `--filter`/`--platform` (default: `0`, unlimited) |
 
 ### Examples
 
@@ -160,12 +175,31 @@ ssmctl run web-1 --output json -- whoami
 
 # Run a PowerShell command on a Windows instance
 ssmctl run win-app-1 -- Get-Process
+
+# Check nginx on every instance whose name contains "api"
+ssmctl run --filter api -- systemctl status nginx
+
+# Check disk space on all Linux instances, 10 at a time
+ssmctl run --platform linux --concurrency 10 -- df -h /
+
+# Per-instance results as a JSON array
+ssmctl run --filter api --output json -- uptime
+```
+
+Example multi-instance JSON output:
+
+```json
+[
+  {"instance_id": "i-0abc", "name": "api-1", "stdout": "up 3 days\n", "stderr": "", "exitCode": 0},
+  {"instance_id": "i-0def", "name": "api-2", "stdout": "", "stderr": "", "exitCode": 0, "error": "failed to send command: ..."}
+]
 ```
 
 ### Required IAM permissions
 
 - `ssm:SendCommand` with `AWS-RunShellScript` and/or `AWS-RunPowerShellScript`
 - `ssm:GetCommandInvocation`
+- `ssm:DescribeInstanceInformation` (only with `--filter`/`--platform`)
 
 ---
 

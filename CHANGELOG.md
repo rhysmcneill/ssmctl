@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/rhysmcneill/ssmctl/compare/v2.3.0...v2.4.0) (2026-09-27)
+
+
+### Features
+
+* **run:** run commands across multiple instances with --filter/--platform ([#225](https://github.com/rhysmcneill/ssmctl/issues/225)) ([ca3de15](https://github.com/rhysmcneill/ssmctl/commit/ca3de153f235323ece23eb45a55706ff96508a89))
+
 ## [2.3.0](https://github.com/rhysmcneill/ssmctl/compare/v2.2.0...v2.3.0) (2026-08-24)
 
 

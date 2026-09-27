@@ -73,6 +73,7 @@ ec2:DescribeInstances          (for Name tag resolution)
 ssm:SendCommand                (document: AWS-RunShellScript or AWS-RunPowerShellScript)
 ssm:GetCommandInvocation
 ec2:DescribeInstances          (for Name tag resolution)
+ssm:DescribeInstanceInformation (only with --filter / --platform)
 ```
 
 ### `ssmctl param`

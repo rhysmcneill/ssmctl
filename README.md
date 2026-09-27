@@ -124,6 +124,19 @@ ssmctl run web-1 -- df -h /
 
 Stdout and stderr stream back to your terminal - Exit codes are propagated.
 
+### Run the same command across a fleet
+
+```bash
+ssmctl run --filter api -- systemctl status nginx
+```
+
+```
+[api-server-1] active (running) since Mon 2026-07-21
+[api-server-2] active (running) since Mon 2026-07-21
+```
+
+Every matching online instance runs the command in parallel, with each output line prefixed by the instance name.
+
 ### Pull a log file off an instance with one command
 
 ```bash
@@ -182,6 +195,7 @@ No context-switching to the AWS console or memorising `aws ssm get-parameter --w
 | `ssmctl connect <target>` | Interactive shell session |
 | `ssmctl forward <target> --local N --remote host:N` | Port forward to any TCP endpoint |
 | `ssmctl run <target> -- <cmd>` | Run a one-shot command and stream output |
+| `ssmctl run --filter <name> -- <cmd>` | Run a command on every matching instance in parallel |
 | `ssmctl cp ./file <target>:/path` | Upload a file |
 | `ssmctl cp <target>:/path ./file` | Download a file |
 | `ssmctl cp --via s3://bucket <src> <dst>` | Large file transfer via S3 staging |

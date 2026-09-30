@@ -1,6 +1,6 @@
 module github.com/rhysmcneill/ssmctl
 
-go 1.26.2
+go 1.26.6
 
 require (
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20250520111509-a70c2aa677fa

@@ -11,8 +11,12 @@ permissions:
 
 jobs:
   ci:
-    name: Test, Build & Smoke
-    runs-on: ubuntu-latest
+    name: Test, Build & Smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     if: github.repository == 'rhysmcneill/ssmctl'
 
     steps:
@@ -22,6 +26,14 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Scan reachable dependencies
+        if: runner.os == 'Linux'
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
+        with:
+          repo-checkout: false
+          go-version-file: go.mod
+          go-package: ./...
 
       - name: Vet
         run: go vet ./...
@@ -38,7 +50,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage
+          name: coverage-${{ runner.os }}
           path: coverage.out
           retention-days: 7
 
@@ -51,7 +63,7 @@ jobs:
           fail_ci_if_error: true
 
       - name: Build
-        run: make build
+        run: go build ./cmd/ssmctl
 
       - name: Smoke tests (e2e, no AWS)
         run: go test ./e2e/ -v -count=1

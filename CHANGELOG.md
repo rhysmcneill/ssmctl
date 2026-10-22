@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/rhysmcneill/ssmctl/compare/v2.4.0...v2.4.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **run:** update run cmd to output more detailed error messages on non-zero exit ([#258](https://github.com/rhysmcneill/ssmctl/issues/258)) ([ca45278](https://github.com/rhysmcneill/ssmctl/commit/ca45278de00321b026f3c8036f0fcfa55a7607ad))
+
 ## [2.4.0](https://github.com/rhysmcneill/ssmctl/compare/v2.3.0...v2.4.0) (2026-09-27)
 
 

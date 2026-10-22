@@ -3,6 +3,7 @@ package ssm
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -222,5 +223,50 @@ func TestRunCommand_ContextCancelled(t *testing.T) {
 	_, err := RunCommand(ctx, client, "i-123", []string{"sleep 60"}, 30*time.Second)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestRunCommand_NonSuccessStatuses(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	tests := []struct {
+		status  types.CommandInvocationStatus
+		details string
+		want    string
+	}{
+		{types.CommandInvocationStatusTimedOut, "ExecutionTimedOut", "command timed out on i-123 (status: TimedOut, details: ExecutionTimedOut)"},
+		{statusUndeliverable, "Undeliverable", "command was not delivered to i-123 (status: Undeliverable, details: Undeliverable)"},
+		{types.CommandInvocationStatusCancelled, "Cancelled", "command was cancelled on i-123"},
+		{statusTerminated, "", "command was terminated on i-123 (status: Terminated)"},
+		{types.CommandInvocationStatusFailed, "Failed", "command did not complete on i-123"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.status), func(t *testing.T) {
+			client := &mockSSMRunClient{
+				sendCommandFn: successSendCommand(),
+				getCommandInvocationFn: func(_ context.Context, _ *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+					return &ssm.GetCommandInvocationOutput{
+						Status:        tt.status,
+						StatusDetails: aws.String(tt.details),
+						ResponseCode:  -1,
+					}, nil
+				},
+			}
+			res, err := RunCommand(context.Background(), client, "i-123", []string{"x"}, 30*time.Second)
+			if res != nil {
+				t.Errorf("result = %+v, want nil", res)
+			}
+			var se *StatusError
+			if !errors.As(err, &se) {
+				t.Fatalf("err = %v, want *StatusError", err)
+			}
+			if se.Status != tt.status {
+				t.Errorf("Status = %s, want %s", se.Status, tt.status)
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("error %q does not contain %q", err.Error(), tt.want)
+			}
+		})
 	}
 }

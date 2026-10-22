@@ -38,6 +38,55 @@ type Result struct {
 	ExitCode int
 }
 
+// Statuses SSM can report that the SDK enum does not define.
+const (
+	statusUndeliverable types.CommandInvocationStatus = "Undeliverable"
+	statusTerminated    types.CommandInvocationStatus = "Terminated"
+)
+
+// StatusError is returned when an SSM command ends in a terminal status that
+// does not correspond to a script exit code (for example TimedOut or
+// Undeliverable), where SSM reports a meaningless ResponseCode of -1.
+type StatusError struct {
+	InstanceID string
+	Status     types.CommandInvocationStatus
+	Details    string
+	Stdout     string
+	Stderr     string
+}
+
+func (e *StatusError) Error() string {
+	info := fmt.Sprintf("status: %s", e.Status)
+	if e.Details != "" {
+		info += fmt.Sprintf(", details: %s", e.Details)
+	}
+	switch e.Status {
+	case types.CommandInvocationStatusTimedOut:
+		return fmt.Sprintf("command timed out on %s (%s)", e.InstanceID, info)
+	case types.CommandInvocationStatusCancelled, types.CommandInvocationStatusCancelling:
+		return fmt.Sprintf("command was cancelled on %s (%s)", e.InstanceID, info)
+	case statusUndeliverable:
+		return fmt.Sprintf("command was not delivered to %s (%s) — is the SSM agent running?", e.InstanceID, info)
+	case statusTerminated:
+		return fmt.Sprintf("command was terminated on %s (%s)", e.InstanceID, info)
+	default:
+		return fmt.Sprintf("command did not complete on %s (%s)", e.InstanceID, info)
+	}
+}
+
+// isStatusFailure reports whether a terminal invocation status means the
+// script never produced a real exit code.
+func isStatusFailure(status types.CommandInvocationStatus, responseCode int32) bool {
+	switch status {
+	case types.CommandInvocationStatusSuccess:
+		return false
+	case types.CommandInvocationStatusFailed:
+		return responseCode == -1
+	default:
+		return true
+	}
+}
+
 const (
 	runShellDocument      = "AWS-RunShellScript"
 	runPowerShellDocument = "AWS-RunPowerShellScript"
@@ -107,11 +156,21 @@ func runCommandWithDocument(ctx context.Context, client RunAPI, instanceID, docu
 				types.CommandInvocationStatusDelayed:
 				continue
 			default:
-				return &Result{
+				res := &Result{
 					Stdout:   aws.ToString(inv.StandardOutputContent),
 					Stderr:   aws.ToString(inv.StandardErrorContent),
 					ExitCode: int(inv.ResponseCode),
-				}, nil
+				}
+				if isStatusFailure(inv.Status, inv.ResponseCode) {
+					return nil, &StatusError{
+						InstanceID: instanceID,
+						Status:     inv.Status,
+						Details:    aws.ToString(inv.StatusDetails),
+						Stdout:     res.Stdout,
+						Stderr:     res.Stderr,
+					}
+				}
+				return res, nil
 			}
 		}
 	}

@@ -1,0 +1,115 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  sca:
+    name: Trivy SCA
+    runs-on: ubuntu-latest
+    if: github.repository == 'rhysmcneill/ssmctl'
+    permissions:
+      contents: read
+      security-events: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cache Trivy DB
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: trivy-db-
+
+      - name: Trivy scan (SARIF)
+        run: |
+          mkdir -p ~/.cache/trivy
+          docker run --rm -v "$PWD:/src" -v "$HOME/.cache/trivy:/root/.cache/trivy" -w /src \
+            ghcr.io/aquasecurity/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222 \
+            fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+            --format sarif --output trivy.sarif .
+
+      - name: Upload SARIF
+        if: always() && github.event.pull_request.head.repo.fork != true
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: trivy.sarif
+
+      - name: Trivy scan (fail on HIGH/CRITICAL)
+        id: gate
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" -v "$HOME/.cache/trivy:/root/.cache/trivy" -w /src \
+            ghcr.io/aquasecurity/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222 \
+            fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+            --format table --output trivy.txt --exit-code 1 .
+          cat trivy.txt
+
+      - name: Open or update vulnerability issue
+        if: steps.gate.outcome == 'failure' && github.event_name != 'pull_request'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const today = new Date().toISOString().slice(0, 10);
+            const title = `Trivy: HIGH/CRITICAL vulnerabilities detected (${today})`;
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const report = require('fs').readFileSync('trivy.txt', 'utf8').slice(0, 55000);
+
+            const body = [
+              `## Trivy found fixable HIGH/CRITICAL vulnerabilities on \`${today}\``,
+              '',
+              `Trigger: \`${context.eventName}\` on \`${context.ref}\` (${context.sha.slice(0, 7)})`,
+              '',
+              '```',
+              report,
+              '```',
+              '',
+              'Fix by bumping the affected module, e.g. `go get example.com/module@vX.Y.Z && go mod tidy`.',
+              '',
+              `[View workflow run](${runUrl})`,
+            ].join('\n');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security',
+              per_page: 20,
+            });
+            const existing = issues.find(i => i.title.startsWith('Trivy: HIGH/CRITICAL vulnerabilities detected'));
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `## Update: vulnerabilities still present on ${today}\n\n${body}`,
+              });
+              console.log(`Updated existing issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['security'],
+                assignees: ['rhysmcneill'],
+              });
+              console.log(`Created issue #${created.data.number}`);
+            }
+
+      - name: Fail on vulnerabilities
+        if: steps.gate.outcome == 'failure'
+        run: |
+          echo "::error::Trivy found fixable HIGH/CRITICAL vulnerabilities — see the scan output above."
+          exit 1

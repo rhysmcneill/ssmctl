@@ -79,6 +79,31 @@ installing it.
 
 ---
 
+## Security Scanning
+
+Every PR to `main` (and every push to `main`, plus a weekly scheduled run) is
+scanned by [Trivy](https://trivy.dev/) via `.github/workflows/security.yml`.
+It checks Go dependencies (`go.mod` / `go.sum`) for known vulnerabilities.
+
+- **This is a merge gate.** Any HIGH or CRITICAL vulnerability that has a fix
+  available fails the `Trivy SCA` check, and the PR can't be merged until it's
+  resolved.
+- Findings are also uploaded to the repository's **Security → Code scanning**
+  tab (not for PRs from forks).
+- To fix a failure, bump the affected module, for example
+  `go get example.com/module@vX.Y.Z && go mod tidy`, and push the change.
+- To reproduce locally (requires Docker):
+
+```bash
+docker run --rm -v "$PWD:/src" -w /src ghcr.io/aquasecurity/trivy:0.76.0 \
+  fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
+```
+
+Vulnerabilities with no upstream fix are ignored (`--ignore-unfixed`) and will
+start failing once a fix is released.
+
+---
+
 ## Code Style
 
 - Follow standard [Go conventions](https://go.dev/doc/effective_go) and the [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments) guide.
@@ -186,6 +211,7 @@ Before opening a PR, verify:
 - [ ] `make ci` passes locally
 - [ ] New behaviour is covered by tests
 - [ ] No linter warnings (`make lint`)
+- [ ] No HIGH/CRITICAL fixable vulnerabilities (the `Trivy SCA` check must pass)
 - [ ] PR title follows the commit message convention above (validated automatically by CI)
 
 ---

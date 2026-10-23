@@ -11,6 +11,7 @@ no bastion, no open ports, no SSH keys.</p>
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/rhysmcneill/ssmctl/badge)](https://securityscorecards.dev/viewer/?uri=github.com/rhysmcneill/ssmctl)
 [![CI](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml/badge.svg)](https://github.com/rhysmcneill/ssmctl/actions/workflows/ci.yml)
+[![Security](https://github.com/rhysmcneill/ssmctl/actions/workflows/security.yml/badge.svg)](https://github.com/rhysmcneill/ssmctl/actions/workflows/security.yml)
 [![codecov](https://codecov.io/gh/rhysmcneill/ssmctl/branch/main/graph/badge.svg)](https://codecov.io/gh/rhysmcneill/ssmctl)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://golang.org)
 [![Version](https://img.shields.io/github/v/tag/rhysmcneill/ssmctl)](https://github.com/rhysmcneill/ssmctl/releases)

@@ -90,6 +90,10 @@ It checks Go dependencies (`go.mod` / `go.sum`) for known vulnerabilities.
   resolved.
 - Findings are also uploaded to the repository's **Security → Code scanning**
   tab (not for PRs from forks).
+- If the scan fails on `main` or the weekly scheduled run, a GitHub issue labelled
+  `security` is opened (or updated, if one is already open) and assigned to the
+  maintainer with the full Trivy report. PRs don't open issues; they just fail
+  the check.
 - To fix a failure, bump the affected module, for example
   `go get example.com/module@vX.Y.Z && go mod tidy`, and push the change.
 - To reproduce locally (requires Docker):

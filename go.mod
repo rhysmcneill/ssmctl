@@ -6,7 +6,7 @@ require (
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20250520111509-a70c2aa677fa
 	github.com/aws/aws-sdk-go-v2 v1.47.4
 	github.com/aws/aws-sdk-go-v2/config v1.33.10
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.339.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.341.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.5
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.0
 	github.com/spf13/cobra v1.10.2

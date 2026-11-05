@@ -14,6 +14,7 @@ import (
 type listOptions struct {
 	Filter   string
 	Platform string
+	Tags     []string
 }
 
 func listCmd() *cobra.Command {
@@ -25,11 +26,19 @@ func listCmd() *cobra.Command {
 		Long: `List all EC2 instances that are managed by AWS Systems Manager.
 
 Instances are sourced from SSM DescribeInstanceInformation and enriched with
-EC2 Name tags. Use --filter and --platform to narrow the results client-side.`,
+EC2 Name tags. Use --filter, --platform and --tag to narrow the results
+client-side. --tag key=value may be repeated (all must match, values are
+case-sensitive); --tag key matches any instance that has the key. If no
+instance has the requested tags, an error is returned.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			a := cmd.Context().Value(app.ContextKey{}).(*app.App)
 
-			instances, err := ssmlib.ListInstances(cmd.Context(), a.ListClient, a.EC2Client, opts.Filter, opts.Platform)
+			tags, err := ssmlib.ParseTagFilters(opts.Tags)
+			if err != nil {
+				return fmt.Errorf("parse --tag: %w", err)
+			}
+
+			instances, err := ssmlib.ListInstances(cmd.Context(), a.ListClient, a.EC2Client, opts.Filter, opts.Platform, tags)
 			if err != nil {
 				return fmt.Errorf("list instances: %w", err)
 			}
@@ -45,6 +54,7 @@ EC2 Name tags. Use --filter and --platform to narrow the results client-side.`,
 	f := cmd.Flags()
 	f.StringVar(&opts.Filter, "filter", "", "Filter by Name tag substring (case-insensitive)")
 	f.StringVar(&opts.Platform, "platform", "", "Filter by platform: linux or windows")
+	f.StringArrayVar(&opts.Tags, "tag", nil, "Filter by EC2 tag key=value, or key to match any value (repeatable, ANDed)")
 
 	return cmd
 }

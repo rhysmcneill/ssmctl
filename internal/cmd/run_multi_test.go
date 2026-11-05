@@ -185,6 +185,9 @@ func TestRunCmd_Filter_ValidationErrors(t *testing.T) {
 		{"missing target", []string{"run", "--", "uptime"}, "missing <target>"},
 		{"empty filter", []string{"run", "--filter", "", "--", "uptime"}, "--filter must not be empty"},
 		{"negative concurrency", []string{"run", "--filter", "api", "--concurrency", "-1", "--", "uptime"}, "--concurrency"},
+		{"target with tag", []string{"run", "web-1", "--tag", "env=prod", "--", "uptime"}, "cannot be combined"},
+		{"invalid tag", []string{"run", "--tag", "=prod", "--", "uptime"}, "invalid --tag"},
+		{"tag matches no instance", []string{"run", "--tag", "env=nope", "--", "uptime"}, "no EC2 instances found with tag env=nope"},
 		{"no matches", []string{"run", "--filter", "nothing-matches", "--", "uptime"}, "no online instances matched"},
 		{"only offline matches", []string{"run", "--filter", "api-3", "--", "uptime"}, "no online instances matched"},
 	}
@@ -448,5 +451,43 @@ func TestPrefixLines(t *testing.T) {
 				t.Errorf("prefixLines(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+// withTags gives every fleet instance an env tag (api-* = prod, db-1 = staging).
+func withTags(a *app.App) {
+	envs := map[string]string{"i-1": "prod", "i-2": "prod", "i-3": "prod", "i-9": "staging"}
+	a.EC2Client = &mockEC2CmdClient{
+		fn: func(_ context.Context, _ *awsec2.DescribeInstancesInput, _ ...func(*awsec2.Options)) (*awsec2.DescribeInstancesOutput, error) {
+			var instances []ec2types.Instance
+			for id, env := range envs {
+				instances = append(instances, ec2types.Instance{
+					InstanceId: aws.String(id),
+					Tags:       []ec2types.Tag{{Key: aws.String("env"), Value: aws.String(env)}},
+				})
+			}
+			return &awsec2.DescribeInstancesOutput{Reservations: []ec2types.Reservation{{Instances: instances}}}, nil
+		},
+	}
+}
+
+func TestRunCmd_Tag_SelectsMatchingOnlineInstances(t *testing.T) {
+	a := fleetApp(t, "text", nil)
+	withTags(a)
+
+	stdout, stderr, err := executeRunCmdCapture(a, []string{"run", "--tag", "env=prod", "--", "echo", "hi"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, want := range []string{"hello from i-1", "hello from i-2"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("stdout = %q, want %q", stdout, want)
+		}
+	}
+	if strings.Contains(stdout, "i-9") {
+		t.Errorf("stdout includes non-matching instance: %q", stdout)
+	}
+	if !strings.Contains(stderr, "running on 2 instance(s)...") {
+		t.Errorf("stderr = %q, want start notice", stderr)
 	}
 }

@@ -31,6 +31,7 @@ type multiRunOutput struct {
 type runOptions struct {
 	filter      string
 	platform    string
+	tags        []string
 	concurrency int
 }
 
@@ -59,8 +60,8 @@ func runCmd() *cobra.Command {
 The run command uses AWS-RunShellScript for Linux/macOS targets and
 AWS-RunPowerShellScript for Windows targets.
 
-Pass a single <target> (instance ID or Name tag), or use --filter and/or
---platform instead to run the command in parallel on every online instance
+Pass a single <target> (instance ID or Name tag), or use --filter, --platform
+and/or --tag (repeatable key=value, ANDed) instead to run the command in parallel on every online instance
 that matches (same matching as "ssmctl list"). Each instance's output is
 printed as soon as it finishes, with every line prefixed by the instance
 name, or ID when it has no Name tag:
@@ -68,6 +69,7 @@ name, or ID when it has no Name tag:
   ssmctl run web-1 -- uname -a
   ssmctl run --filter api -- systemctl status nginx
   ssmctl run --platform linux --concurrency 10 -- df -h /
+  ssmctl run --tag env=prod --tag role=api -- uptime
 
 When targeting multiple instances the command exits non-zero if any instance
 fails, and --output json prints an array of per-instance results.`,
@@ -81,15 +83,15 @@ fails, and --output json prints an array of per-instance results.`,
 				return fmt.Errorf("use -- to separate target from command, e.g.: ssmctl run <target> -- uname -a")
 			}
 
-			if cmd.Flags().Changed("filter") || cmd.Flags().Changed("platform") {
+			if cmd.Flags().Changed("filter") || cmd.Flags().Changed("platform") || cmd.Flags().Changed("tag") {
 				if dashAt > 0 {
-					return fmt.Errorf("<target> cannot be combined with --filter or --platform")
+					return fmt.Errorf("<target> cannot be combined with --filter, --platform or --tag")
 				}
 				return runOnMatchingInstances(cmd, a, opts, args[dashAt:])
 			}
 
 			if dashAt == 0 {
-				return fmt.Errorf("missing <target>: use ssmctl run <target> -- <command>, or --filter/--platform to target multiple instances")
+				return fmt.Errorf("missing <target>: use ssmctl run <target> -- <command>, or --filter/--platform/--tag to target multiple instances")
 			}
 
 			target := args[0]
@@ -139,7 +141,8 @@ fails, and --output json prints an array of per-instance results.`,
 	f := cmd.Flags()
 	f.StringVar(&opts.filter, "filter", "", "Run on all online instances whose Name tag or ID contains this substring (case-insensitive)")
 	f.StringVar(&opts.platform, "platform", "", "Run on all online instances of this platform: linux or windows")
-	f.IntVar(&opts.concurrency, "concurrency", 0, "Maximum number of instances to run on in parallel with --filter/--platform (0 = unlimited)")
+	f.StringArrayVar(&opts.tags, "tag", nil, "Run on all online instances with this EC2 tag, key=value or key for any value (repeatable, ANDed)")
+	f.IntVar(&opts.concurrency, "concurrency", 0, "Maximum number of instances to run on in parallel with --filter/--platform/--tag (0 = unlimited)")
 
 	return cmd
 }
@@ -152,7 +155,12 @@ func runOnMatchingInstances(cmd *cobra.Command, a *app.App, opts *runOptions, co
 		return fmt.Errorf("--concurrency must be 0 (unlimited) or greater")
 	}
 
-	matched, err := ssmlib.ListInstances(cmd.Context(), a.ListClient, a.EC2Client, opts.filter, opts.platform)
+	tags, err := ssmlib.ParseTagFilters(opts.tags)
+	if err != nil {
+		return fmt.Errorf("parse --tag: %w", err)
+	}
+
+	matched, err := ssmlib.ListInstances(cmd.Context(), a.ListClient, a.EC2Client, opts.filter, opts.platform, tags)
 	if err != nil {
 		return fmt.Errorf("list instances: %w", err)
 	}
@@ -167,7 +175,7 @@ func runOnMatchingInstances(cmd *cobra.Command, a *app.App, opts *runOptions, co
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "skipping %d matching instance(s) that are not online\n", skipped)
 	}
 	if len(online) == 0 {
-		return fmt.Errorf("no online instances matched --filter %q --platform %q", opts.filter, opts.platform)
+		return fmt.Errorf("no online instances matched --filter %q --platform %q --tag %q", opts.filter, opts.platform, opts.tags)
 	}
 
 	commandFor := func(t ssmlib.TargetInfo) []string {

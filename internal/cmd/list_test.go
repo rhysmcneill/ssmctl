@@ -182,3 +182,35 @@ func TestListCmd_EmptyList_TextOutput(t *testing.T) {
 		t.Errorf("expected header even for empty list, got:\n%s", out)
 	}
 }
+
+func TestListCmd_Tag(t *testing.T) {
+	a := fleetApp(t, "text", nil)
+	withTags(a)
+
+	run := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		root := &cobra.Command{Use: "ssmctl", SilenceErrors: true, SilenceUsage: true}
+		root.AddCommand(listCmd())
+		root.SetArgs(append([]string{"list"}, args...))
+		root.SetOut(&out)
+		a.Printer.Out = &out
+		err := root.ExecuteContext(context.WithValue(context.Background(), app.ContextKey{}, a))
+		return out.String(), err
+	}
+
+	out, err := run("--tag", "env=staging")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "i-9") || strings.Contains(out, "i-1") {
+		t.Errorf("output = %q, want only i-9", out)
+	}
+
+	if _, err := run("--tag", "env=nope"); err == nil || !strings.Contains(err.Error(), "no EC2 instances found with tag env=nope") {
+		t.Errorf("err = %v, want tag-not-found error", err)
+	}
+
+	if _, err := run("--tag", "=prod"); err == nil || !strings.Contains(err.Error(), "invalid --tag") {
+		t.Errorf("err = %v, want invalid --tag error", err)
+	}
+}

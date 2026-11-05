@@ -21,9 +21,12 @@ func FuzzListInstancesFiltering(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, nameFilter, platformFilter string) {
 		items := generateSSMInstances()
-		names := generateNameMap()
+		meta := make(map[string]instanceMeta)
+		for id, name := range generateNameMap() {
+			meta[id] = instanceMeta{name: name}
+		}
 
-		result := filterInstances(items, names, nameFilter, platformFilter)
+		result := filterInstances(items, meta, nameFilter, platformFilter)
 
 		// Invariant: if a filter is set, all results contain the filter substring
 		// in either the Name tag or instance ID.

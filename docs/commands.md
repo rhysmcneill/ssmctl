@@ -9,7 +9,7 @@ All commands share the [global flags](#global-flags) defined on the root command
 Discover EC2 instances managed by SSM in your account.
 
 ```bash
-ssmctl list [--filter <substring>] [--platform linux|windows] [--output json]
+ssmctl list [--filter <substring>] [--platform linux|windows] [--tag key=value ...] [--output json]
 ```
 
 ### Output
@@ -27,6 +27,7 @@ i-0aabbccddeeff0011   win-app-1   Windows    3.2.2086.0      Offline
 |------|-------------|
 | `--filter <string>` | Substring match on the instance Name tag |
 | `--platform linux\|windows` | Filter by platform |
+| `--tag <key=value>` | Filter by EC2 tag. Repeatable; all tags must match (AND). Values are exact and case-sensitive. `--tag key` matches any instance that has the key. Errors if no instance has the tag(s) |
 | `--output json` | Emit a JSON array instead of a table |
 
 ### Examples
@@ -40,6 +41,12 @@ ssmctl list --filter web
 
 # Linux instances only
 ssmctl list --platform linux
+
+# Instances tagged env=prod AND role=api
+ssmctl list --tag env=prod --tag role=api
+
+# Instances in an Auto Scaling group
+ssmctl list --tag aws:autoscaling:groupName=web-asg
 
 # Machine-readable output
 ssmctl list --output json | jq '.[].InstanceId'
@@ -130,7 +137,7 @@ Run a one-shot command on one or more instances and stream its output back.
 
 ```bash
 ssmctl run <target> -- <command> [args...]
-ssmctl run --filter <substring> [--platform <os>] -- <command> [args...]
+ssmctl run --filter <substring> [--platform <os>] [--tag key=value ...] -- <command> [args...]
 ```
 
 The `--` separator is required. Stdout and stderr are streamed to your terminal. The remote exit code is propagated.
@@ -139,7 +146,7 @@ The `--` separator is required. Stdout and stderr are streamed to your terminal.
 
 ### Running across multiple instances
 
-Use `--filter` and/or `--platform` instead of `<target>` to run the command on every matching instance. Matching works the same way as [`ssmctl list`](#ssmctl-list). Instances that are not `Online` in SSM are skipped, and a notice is printed to stderr.
+Use `--filter`, `--platform` and/or `--tag` instead of `<target>` to run the command on every matching instance. Matching works the same way as [`ssmctl list`](#ssmctl-list). Instances that are not `Online` in SSM are skipped, and a notice is printed to stderr.
 
 - The command runs on all matching instances **in parallel**. Use `--concurrency` to cap how many run at once on large fleets.
 - Each line of stdout/stderr is prefixed with the instance name, or the instance ID if it has no Name tag.
@@ -156,7 +163,8 @@ Use `--filter` and/or `--platform` instead of `<target>` to run the command on e
 | `--output json` | Emit stdout/stderr/exit-code as JSON |
 | `--filter <string>` | Run on all online instances whose Name tag or ID contains this substring (case-insensitive) |
 | `--platform <os>` | Run on all online instances of this platform: `linux` or `windows` |
-| `--concurrency <int>` | Maximum instances to run on in parallel with `--filter`/`--platform` (default: `0`, unlimited) |
+| `--tag <key=value>` | Run on all online instances with this EC2 tag. Repeatable, ANDed with each other and with `--filter`/`--platform`. `--tag key` matches any value. Errors if no instance has the tag(s) |
+| `--concurrency <int>` | Maximum instances to run on in parallel with `--filter`/`--platform`/`--tag` (default: `0`, unlimited) |
 
 ### Examples
 
@@ -182,6 +190,9 @@ ssmctl run --filter api -- systemctl status nginx
 # Check disk space on all Linux instances, 10 at a time
 ssmctl run --platform linux --concurrency 10 -- df -h /
 
+# Run on every prod API instance
+ssmctl run --tag env=prod --tag role=api -- systemctl status nginx
+
 # Per-instance results as a JSON array
 ssmctl run --filter api --output json -- uptime
 ```
@@ -199,7 +210,8 @@ Example multi-instance JSON output:
 
 - `ssm:SendCommand` with `AWS-RunShellScript` and/or `AWS-RunPowerShellScript`
 - `ssm:GetCommandInvocation`
-- `ssm:DescribeInstanceInformation` (only with `--filter`/`--platform`)
+- `ssm:DescribeInstanceInformation` (only with `--filter`/`--platform`/`--tag`)
+- `ec2:DescribeInstances` (with `--tag`; required, unlike name enrichment)
 
 ---
 

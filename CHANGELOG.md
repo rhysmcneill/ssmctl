@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.5.0](https://github.com/rhysmcneill/ssmctl/compare/v2.4.1...v2.5.0) (2026-11-05)
+
+
+### Features
+
+* **list,run:** add --tag key=value targeting to list and run ([#276](https://github.com/rhysmcneill/ssmctl/issues/276)) ([27eea63](https://github.com/rhysmcneill/ssmctl/commit/27eea6385ad8a1eda5ca7d1112d06467819cb9e5))
+
+
+### Bug Fixes
+
+* **run:** enforce --timeout on run and cp commands ([#278](https://github.com/rhysmcneill/ssmctl/issues/278)) ([b0d0f2b](https://github.com/rhysmcneill/ssmctl/commit/b0d0f2b10d69102418ddaf2b3f955769ad96d978))
+
 ## [2.4.1](https://github.com/rhysmcneill/ssmctl/compare/v2.4.0...v2.4.1) (2026-10-22)
 
 

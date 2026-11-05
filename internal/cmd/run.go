@@ -157,7 +157,7 @@ func runOnMatchingInstances(cmd *cobra.Command, a *app.App, opts *runOptions, co
 
 	tags, err := ssmlib.ParseTagFilters(opts.tags)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse --tag: %w", err)
 	}
 
 	matched, err := ssmlib.ListInstances(cmd.Context(), a.ListClient, a.EC2Client, opts.filter, opts.platform, tags)

@@ -35,7 +35,7 @@ instance has the requested tags, an error is returned.`,
 
 			tags, err := ssmlib.ParseTagFilters(opts.Tags)
 			if err != nil {
-				return err
+				return fmt.Errorf("parse --tag: %w", err)
 			}
 
 			instances, err := ssmlib.ListInstances(cmd.Context(), a.ListClient, a.EC2Client, opts.Filter, opts.Platform, tags)

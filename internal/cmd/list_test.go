@@ -209,4 +209,8 @@ func TestListCmd_Tag(t *testing.T) {
 	if _, err := run("--tag", "env=nope"); err == nil || !strings.Contains(err.Error(), "no EC2 instances found with tag env=nope") {
 		t.Errorf("err = %v, want tag-not-found error", err)
 	}
+
+	if _, err := run("--tag", "=prod"); err == nil || !strings.Contains(err.Error(), "invalid --tag") {
+		t.Errorf("err = %v, want invalid --tag error", err)
+	}
 }

@@ -491,3 +491,55 @@ func TestRunCmd_Tag_SelectsMatchingOnlineInstances(t *testing.T) {
 		t.Errorf("stderr = %q, want start notice", stderr)
 	}
 }
+
+// hangingSSM makes every command stay InProgress so only the client-side
+// --timeout can end the wait.
+func hangingSSM(a *app.App) {
+	a.SSMClient = &mockSSMCmdClient{
+		sendCommandFn: func(_ context.Context, in *awsssm.SendCommandInput, _ ...func(*awsssm.Options)) (*awsssm.SendCommandOutput, error) {
+			return &awsssm.SendCommandOutput{Command: &types.Command{CommandId: aws.String("cmd-" + in.InstanceIds[0])}}, nil
+		},
+		getCommandInvocationFn: func(_ context.Context, _ *awsssm.GetCommandInvocationInput, _ ...func(*awsssm.Options)) (*awsssm.GetCommandInvocationOutput, error) {
+			return &awsssm.GetCommandInvocationOutput{Status: types.CommandInvocationStatusInProgress}, nil
+		},
+	}
+}
+
+func TestRunCmd_Timeout_SingleTarget(t *testing.T) {
+	a := fleetApp(t, "text", nil)
+	hangingSSM(a)
+	a.Config.Timeout = 50 * time.Millisecond
+
+	_, _, err := executeRunCmdCapture(a, []string{"run", "i-1", "--", "sleep", "120"})
+	var te *ssmlib.TimeoutError
+	if !errors.As(err, &te) {
+		t.Fatalf("err = %v, want *ssm.TimeoutError", err)
+	}
+	var ee *ExitCodeError
+	if errors.As(err, &ee) {
+		t.Errorf("timeout must not be an ExitCodeError (exit code would be forwarded)")
+	}
+}
+
+func TestRunCmd_Timeout_MultiInstanceJSONError(t *testing.T) {
+	a := fleetApp(t, "json", nil)
+	hangingSSM(a)
+	a.Config.Timeout = 50 * time.Millisecond
+
+	stdout, _, err := executeRunCmdCapture(a, []string{"run", "--filter", "api", "--", "sleep", "120"})
+	if err == nil {
+		t.Fatalf("expected error when instances time out")
+	}
+	var got []multiRunOutput
+	if jerr := json.Unmarshal([]byte(stdout), &got); jerr != nil {
+		t.Fatalf("invalid JSON %q: %v", stdout, jerr)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d results, want 2: %v", len(got), got)
+	}
+	for _, r := range got {
+		if !strings.Contains(r.Error, "timed out after 50ms") {
+			t.Errorf("%s error = %q, want timeout message", r.InstanceID, r.Error)
+		}
+	}
+}

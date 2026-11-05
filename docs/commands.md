@@ -159,7 +159,7 @@ Use `--filter`, `--platform` and/or `--tag` instead of `<target>` to run the com
 
 | Flag | Description |
 |------|-------------|
-| `--timeout, -t` | Maximum time to wait for the command (default: `60s`). Applies per instance |
+| `--timeout, -t` | Maximum time to wait for the command (default: `5m`). Applies per instance. On expiry `ssmctl` reports a timeout error, exits `1`, and asks SSM to cancel the command; the agent is also told to stop it via `executionTimeout` |
 | `--output json` | Emit stdout/stderr/exit-code as JSON |
 | `--filter <string>` | Run on all online instances whose Name tag or ID contains this substring (case-insensitive) |
 | `--platform <os>` | Run on all online instances of this platform: `linux` or `windows` |
@@ -516,7 +516,7 @@ These flags apply to every command:
 | `--region` | `-r` | From config/env | AWS region |
 | `--output` | `-o` | `text` | Output format: `text` or `json` |
 | `--debug` | `-d` | `false` | Enable AWS SDK debug logging |
-| `--timeout` | `-t` | `60s` | Command timeout (applies to `run` and `cp`) |
+| `--timeout` | `-t` | `300s` | Maximum time to wait for a command, and the limit set on the remote command (applies to `run` and `cp`) |
 
 ---
 

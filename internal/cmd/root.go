@@ -65,7 +65,7 @@ func Run() error {
 	f.StringVarP(&opts.Region, "region", "r", "", "AWS region")
 	f.StringVarP(&opts.Output, "output", "o", "text", "Output format (text|json)")
 	f.BoolVarP(&opts.Debug, "debug", "d", false, "Enable debug logging")
-	f.DurationVarP(&opts.Timeout, "timeout", "t", 60*time.Second, "Timeout for commands")
+	f.DurationVarP(&opts.Timeout, "timeout", "t", 300*time.Second, "Maximum time to wait for a command, the remote command is also limited to this time")
 
 	cmd.AddCommand(connectCmd(), runCmd(), cpCmd(), versionCmd(), listCmd(), forwardCmd(), completionCmd(), paramCmd())
 

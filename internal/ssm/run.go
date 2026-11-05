@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -74,6 +75,31 @@ func (e *StatusError) Error() string {
 	}
 }
 
+// TimeoutError is returned when the client-side --timeout elapses before the
+// command reaches a terminal status.
+type TimeoutError struct {
+	InstanceID string
+	Timeout    time.Duration
+}
+
+func (e *TimeoutError) Error() string {
+	return fmt.Sprintf("command timed out after %s on %s", e.Timeout, e.InstanceID)
+}
+
+// CancelAPI is implemented by *ssm.Client. When the RunAPI also satisfies it,
+// a timed-out command is cancelled on a best-effort basis.
+type CancelAPI interface {
+	CancelCommand(ctx context.Context, in *ssm.CancelCommandInput, opts ...func(*ssm.Options)) (*ssm.CancelCommandOutput, error)
+}
+
+// minDeliveryTimeoutSeconds is SSM's minimum SendCommand TimeoutSeconds. It
+// only bounds how long SSM waits for the agent to start the command; the
+// user's timeout bounds execution via executionTimeout and the poll deadline.
+const minDeliveryTimeoutSeconds = 30
+
+// cancelGrace bounds the best-effort CancelCommand call after a timeout.
+const cancelGrace = 5 * time.Second
+
 // isStatusFailure reports whether a terminal invocation status means the
 // script never produced a real exit code.
 func isStatusFailure(status types.CommandInvocationStatus, responseCode int32) bool {
@@ -115,13 +141,18 @@ func RunCommandForTarget(ctx context.Context, client RunAPI, target TargetInfo, 
 }
 
 func runCommandWithDocument(ctx context.Context, client RunAPI, instanceID, documentName string, command []string, timeout time.Duration) (*Result, error) {
+	// executionTimeout is a whole number of seconds (min 1); round up so the
+	// agent never stops the command before the client gives up.
+	executionTimeout := max(int64(1), int64((timeout+time.Second-1)/time.Second))
+
 	resp, err := client.SendCommand(ctx, &ssm.SendCommandInput{
 		InstanceIds:  []string{instanceID},
 		DocumentName: aws.String(documentName),
 		Parameters: map[string][]string{
-			"commands": command,
+			"commands":         command,
+			"executionTimeout": {strconv.FormatInt(executionTimeout, 10)},
 		},
-		TimeoutSeconds: aws.Int32(int32(timeout.Seconds())),
+		TimeoutSeconds: aws.Int32(minDeliveryTimeoutSeconds),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to send command: %w", err)
@@ -129,15 +160,31 @@ func runCommandWithDocument(ctx context.Context, client RunAPI, instanceID, docu
 
 	commandID := aws.ToString(resp.Command.CommandId)
 
+	pollCtx, stop := context.WithTimeout(ctx, timeout)
+	defer stop()
+
+	// timedOut reports whether the poll deadline (not the caller's context)
+	// ended the wait, and if so cancels the remote command.
+	timedOut := func() error {
+		if ctx.Err() != nil || !errors.Is(pollCtx.Err(), context.DeadlineExceeded) {
+			return nil
+		}
+		cancelCommand(ctx, client, commandID, instanceID)
+		return &TimeoutError{InstanceID: instanceID, Timeout: timeout}
+	}
+
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-pollCtx.Done():
+			if err := timedOut(); err != nil {
+				return nil, err
+			}
 			return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
 		case <-ticker.C:
-			inv, err := client.GetCommandInvocation(ctx, &ssm.GetCommandInvocationInput{
+			inv, err := client.GetCommandInvocation(pollCtx, &ssm.GetCommandInvocationInput{
 				CommandId:  aws.String(commandID),
 				InstanceId: aws.String(instanceID),
 			})
@@ -146,6 +193,9 @@ func runCommandWithDocument(ctx context.Context, client RunAPI, instanceID, docu
 				var notFound *types.InvocationDoesNotExist
 				if errors.As(err, &notFound) {
 					continue
+				}
+				if terr := timedOut(); terr != nil {
+					return nil, terr
 				}
 				return nil, fmt.Errorf("failed to get command invocation: %w", err)
 			}
@@ -174,4 +224,20 @@ func runCommandWithDocument(ctx context.Context, client RunAPI, instanceID, docu
 			}
 		}
 	}
+}
+
+// cancelCommand asks SSM to cancel a command that outlived the client-side
+// timeout. It is best-effort: failures are ignored because the timeout error
+// is what the user needs to see, and executionTimeout stops the process anyway.
+func cancelCommand(ctx context.Context, client RunAPI, commandID, instanceID string) {
+	c, ok := client.(CancelAPI)
+	if !ok {
+		return
+	}
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancelGrace)
+	defer cancel()
+	_, _ = c.CancelCommand(cctx, &ssm.CancelCommandInput{
+		CommandId:   aws.String(commandID),
+		InstanceIds: []string{instanceID},
+	})
 }

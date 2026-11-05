@@ -416,3 +416,40 @@ func TestRunCommand_SendsExecutionTimeout(t *testing.T) {
 		})
 	}
 }
+
+// runOnly exposes just RunAPI, hiding CancelCommand.
+type runOnly struct{ RunAPI }
+
+func TestRunCommand_ClientTimeout_ClientWithoutCancelSupport(t *testing.T) {
+	pollInterval = 5 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	client := runOnly{&mockSSMRunClient{sendCommandFn: successSendCommand(), getCommandInvocationFn: inProgress}}
+
+	_, err := RunCommand(context.Background(), client, "i-123", []string{"x"}, 30*time.Millisecond)
+	var te *TimeoutError
+	if !errors.As(err, &te) {
+		t.Fatalf("err = %v, want *TimeoutError", err)
+	}
+}
+
+func TestRunCommand_GetInvocationErrorIsWrapped(t *testing.T) {
+	pollInterval = 5 * time.Millisecond
+	t.Cleanup(func() { pollInterval = 2 * time.Second })
+
+	client := &mockSSMRunClient{
+		sendCommandFn: successSendCommand(),
+		getCommandInvocationFn: func(context.Context, *ssm.GetCommandInvocationInput, ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			return nil, errors.New("access denied")
+		},
+	}
+
+	_, err := RunCommand(context.Background(), client, "i-123", []string{"x"}, time.Minute)
+	if err == nil || !strings.Contains(err.Error(), "failed to get command invocation") {
+		t.Fatalf("err = %v, want wrapped get-invocation error", err)
+	}
+	var te *TimeoutError
+	if errors.As(err, &te) {
+		t.Errorf("non-timeout failure reported as TimeoutError")
+	}
+}
